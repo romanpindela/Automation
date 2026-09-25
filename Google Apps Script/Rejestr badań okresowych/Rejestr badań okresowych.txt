@@ -1,0 +1,459 @@
+/**
+ * DWUKIERUNKOWA SYNCHRONIZACJA: e-Zdrowie <-> Kalendarz Google "Słońce"
+ * Zabezpieczona przed błędem tabeli Sheets: "The table header row cell must have a value."
+ */
+
+const CONFIG = {
+  SHEET_NAME: 'BADANIA',
+  CALENDAR_ID: 'IDKALENDARZA@group.calendar.google.com',
+
+  // Numery kolumn w tabeli:
+  COL_KTO: 1,         // A: Kto
+  COL_TYTUL: 2,       // B: Tytuł / Rodzaj badania
+  COL_UWAGI: 3,       // C: Dodatkowe uwagi
+  COL_MIEJSCE: 4,     // D: Miejsce / Placówka / Lekarz
+  COL_TERMIN: 5,      // E: Termin badania (Data)
+  COL_GODZINA: 6,     // F: godzina badania
+  COL_STATUS: 7,      // G: Status badania
+  COL_LINK: 8,        // H: Link do Wyników
+  COL_EVENT_ID: 9     // I: ID Wydarzenia
+};
+
+// ============================================================================
+// KIERUNEK 1: EDYCJA W ARKUSZU (ON EDIT)
+// ============================================================================
+function syncRowToCalendar(e) {
+  try {
+    if (!e || !e.range) return;
+
+    const sheet = e.source.getActiveSheet();
+    if (CONFIG.SHEET_NAME && sheet.getName() !== CONFIG.SHEET_NAME) return;
+
+    const row = e.range.getRow();
+    const headerRow = findHeaderRowIndex(sheet);
+    if (row <= headerRow) return; // Ignorujemy wiersz nagłówka i wszystko powyżej
+
+    // Zabezpieczenie przed pętlą przy edycji ID
+    if (e.range.getColumn() === CONFIG.COL_EVENT_ID) return;
+
+    const spreadsheet = e.source;
+    const maxCols = Math.max(sheet.getLastColumn(), 10);
+    const rawValues = sheet.getRange(row, 1, 1, maxCols).getValues()[0];
+    const displayValues = sheet.getRange(row, 1, 1, maxCols).getDisplayValues()[0];
+
+    const who = displayValues[CONFIG.COL_KTO - 1].trim();
+    const examTitle = displayValues[CONFIG.COL_TYTUL - 1].trim();
+    const notes = displayValues[CONFIG.COL_UWAGI - 1].trim();
+    const placeRaw = displayValues[CONFIG.COL_MIEJSCE - 1].trim();
+    const rawDate = rawValues[CONFIG.COL_TERMIN - 1];
+    const displayDate = displayValues[CONFIG.COL_TERMIN - 1].trim();
+    const displayTime = displayValues[CONFIG.COL_GODZINA - 1].trim();
+    const statusRaw = displayValues[CONFIG.COL_STATUS - 1].trim();
+    let resultLink = displayValues[CONFIG.COL_LINK - 1].trim();
+    
+    // Szukanie ID wydarzenia
+    let eventId = displayValues[CONFIG.COL_EVENT_ID - 1].trim();
+    if (!eventId || !eventId.includes('@')) {
+      const found = displayValues.find(val => val.includes('@google.com'));
+      if (found) eventId = found.trim();
+    }
+
+    const cal = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
+    if (!cal) {
+      Logger.log("Nie znaleziono kalendarza: " + CONFIG.CALENDAR_ID);
+      return;
+    }
+
+    // USUNIĘCIE DATY Z ARKUSZA -> USUWA WYDARZENIE Z KALENDARZA
+    const hasDate = (rawDate instanceof Date) || (displayDate !== '');
+    if (!hasDate) {
+      if (eventId) {
+        Logger.log(`Wiersz ${row}: Skasowano datę badania. Usuwam powiązane wydarzenie ${eventId} z kalendarza.`);
+        try {
+          let existingEvent = cal.getEventById(eventId);
+          if (!existingEvent && eventId.includes('@')) {
+            existingEvent = cal.getEventById(eventId.split('@')[0]);
+          }
+          if (existingEvent) {
+            existingEvent.deleteEvent();
+            Logger.log(`Pomyślnie usunięto wydarzenie z kalendarza Słońce.`);
+          }
+        } catch (delErr) {
+          Logger.log(`Błąd podczas usuwania wydarzenia: ${delErr.message}`);
+        }
+        sheet.getRange(row, CONFIG.COL_EVENT_ID).setValue('');
+      }
+      return;
+    }
+
+    if (!examTitle) return;
+
+    // Obsługa tworzenia folderu na wyniki
+    const needsFolder = resultLink.toLowerCase() === 'tak' || 
+                       (resultLink.length > 0 && !resultLink.startsWith('http') && resultLink.includes('-'));
+
+    if (needsFolder && (rawDate || displayDate)) {
+      const dateStr = formatDateToYYYYMMDD(rawDate || displayDate);
+      const folderName = `${dateStr} - ${who || 'Pacjent'} - ${examTitle} - ${placeRaw || 'Ośrodek'}`
+        .replace(/[\\/:*?"<>|]/g, '-');
+
+      const parentFolder = getParentFolder(spreadsheet.getId());
+      const folderUrl = findOrCreateFolderUrl(parentFolder, folderName);
+
+      if (folderUrl) {
+        sheet.getRange(row, CONFIG.COL_LINK).setValue(folderUrl);
+        resultLink = folderUrl;
+      }
+    }
+
+    // Data i godzina
+    const dateTimeObj = buildDateTimeFromDisplay(rawDate, displayDate, displayTime);
+    const startTime = dateTimeObj.date;
+    const isAllDay = dateTimeObj.isAllDay;
+    const timeString = dateTimeObj.timeString;
+    const endTime = new Date(startTime.getTime() + (45 * 60 * 1000));
+
+    // Status
+    const normStatus = statusRaw.toLowerCase();
+    const isCompleted = (normStatus === 'zamknięte' || normStatus === 'zamkniete' || normStatus === 'zrobione');
+    const isCancelled = (normStatus === 'odwołane' || normStatus === 'odwolane');
+    const isMuted = isCompleted || isCancelled;
+
+    let icon = getExamIcon(examTitle);
+    let statusPrefix = '';
+    if (isCompleted) {
+      icon = '⚪';
+      statusPrefix = '[ZROBIONE] ';
+    } else if (isCancelled) {
+      icon = '❌';
+      statusPrefix = '[ODWOŁANE] ';
+    }
+
+    const personPart = who ? `${who} - ` : '';
+    const placePart = placeRaw ? ` / ${placeRaw}` : '';
+    const timePart = timeString ? ` (godzina ${timeString})` : '';
+    const statusSuffix = statusRaw ? ` (${statusRaw})` : '';
+    const eventTitle = `${statusPrefix}${icon} ${personPart}${examTitle}${placePart}${timePart}${statusSuffix}`;
+
+    // Dynamiczna lokalizacja z Google Maps
+    const resolvedLocation = dynamicGeocodeLocation(placeRaw);
+
+    // Bezpośredni link do wiersza
+    const sheetId = sheet.getSheetId();
+    const directSheetUrl = `${spreadsheet.getUrl()}#gid=${sheetId}&range=A${row}`;
+
+    // Opis wydarzenia
+    const descriptionLines = [
+      `👤 Pacjent: ${who || 'Nie określono'}`,
+      `🩺 Badanie: ${examTitle}`,
+      `🏥 Miejsce / Lekarz: ${placeRaw || 'Brak'}`,
+      resolvedLocation ? `📍 Adres (Google Maps): ${resolvedLocation}` : '',
+      timeString ? `⏰ Godzina: ${timeString}` : '⏰ Godzina: Całodniowe / Nie podano',
+      `📌 Status: ${statusRaw || 'Zaplanowane'}`,
+      `📝 Dodatkowe uwagi: ${notes || 'Brak'}`,
+      resultLink && resultLink.startsWith('http') ? `📁 Link do Wyników:\n${resultLink}` : '',
+      `\n🔗 Otwórz w e-Zdrowie (BADANIA):\n${directSheetUrl}`
+    ].filter(line => line !== '').join('\n');
+
+    // Aktualizacja istniejącego wpisu
+    if (eventId) {
+      try {
+        let existingEvent = cal.getEventById(eventId);
+        if (!existingEvent && eventId.includes('@')) {
+          existingEvent = cal.getEventById(eventId.split('@')[0]);
+        }
+        if (existingEvent) {
+          existingEvent.setTitle(eventTitle);
+          existingEvent.setDescription(descriptionLines);
+          existingEvent.setLocation(resolvedLocation);
+
+          if (isAllDay) {
+            existingEvent.setAllDayDate(startTime);
+          } else {
+            existingEvent.setTime(startTime, endTime);
+          }
+
+          try {
+            if (isMuted) existingEvent.setColor(CalendarApp.EventColor.GRAY);
+            else existingEvent.setColor(CalendarApp.EventColor.PALE_BLUE);
+          } catch (cErr) {}
+          return;
+        }
+      } catch (err) {
+        Logger.log("Błąd aktualizacji: " + err.message);
+      }
+    }
+
+    // Tworzenie nowego wpisu
+    let newEvent;
+    if (isAllDay) {
+      newEvent = cal.createAllDayEvent(eventTitle, startTime, {
+        description: descriptionLines,
+        location: resolvedLocation
+      });
+    } else {
+      newEvent = cal.createEvent(eventTitle, startTime, endTime, {
+        description: descriptionLines,
+        location: resolvedLocation
+      });
+    }
+
+    try {
+      if (isMuted) newEvent.setColor(CalendarApp.EventColor.GRAY);
+      else newEvent.setColor(CalendarApp.EventColor.PALE_BLUE);
+    } catch (cErr) {}
+
+    // Zapis ID w arkuszu
+    sheet.getRange(row, CONFIG.COL_EVENT_ID).setValue(newEvent.getId());
+
+  } catch (err) {
+    Logger.log("Błąd główny syncRowToCalendar: " + err.toString());
+  }
+}
+
+// ============================================================================
+// KIERUNEK 2: ZMIANA W KALENDARZU -> AKTUALIZACJA ARKUSZA (syncFromCalendarToSheet)
+// ============================================================================
+function syncFromCalendarToSheet() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const cal = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
+    if (!cal) return;
+
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_NAME) || spreadsheet.getActiveSheet();
+    const lastRow = sheet.getLastRow();
+    
+    // Ustalamy dokładnie, w którym wierszu jest nagłówek tabeli
+    const headerRow = findHeaderRowIndex(sheet);
+    if (lastRow <= headerRow) return;
+
+    const startRow = headerRow + 1; // Pierwszy wiersz z prawdziwymi danymi
+    const numRows = lastRow - headerRow;
+    const maxCols = Math.max(sheet.getLastColumn(), 10);
+    const range = sheet.getRange(startRow, 1, numRows, maxCols);
+    const displayValues = range.getDisplayValues();
+    const rawValues = range.getValues();
+
+    for (let i = 0; i < numRows; i++) {
+      const rowNum = startRow + i;
+      const rowDisplay = displayValues[i];
+      const rowRaw = rawValues[i];
+
+      let eventId = rowDisplay[CONFIG.COL_EVENT_ID - 1] ? rowDisplay[CONFIG.COL_EVENT_ID - 1].trim() : '';
+      if (!eventId || !eventId.includes('@')) {
+        const found = rowDisplay.find(val => typeof val === 'string' && val.includes('@google.com'));
+        if (found) eventId = found.trim();
+      }
+
+      // Jeśli wiersz nie ma zapisanego ID wydarzenia – ignorujemy
+      if (!eventId) continue;
+
+      let event = null;
+      try {
+        event = cal.getEventById(eventId);
+        if (!event && eventId.includes('@')) {
+          event = cal.getEventById(eventId.split('@')[0]);
+        }
+      } catch (e) {}
+
+      // Jeśli wydarzenie zostało usunięte z kalendarza
+      if (!event) {
+        Logger.log(`Wiersz ${rowNum}: Wydarzenie usunięte z kalendarza. Czyszczę ID w arkuszu.`);
+        // Czyścimy wyłącznie wtedy, gdy to wiersz z danymi (powyżej headerRow)
+        if (rowNum > headerRow) {
+          sheet.getRange(rowNum, CONFIG.COL_EVENT_ID).setValue('');
+        }
+        continue;
+      }
+
+      const eventStart = event.getStartTime();
+      const isAllDay = event.isAllDayEvent();
+
+      const calYear = eventStart.getFullYear();
+      const calMonth = eventStart.getMonth() + 1;
+      const calDay = eventStart.getDate();
+      const calTimeStr = isAllDay ? "" : Utilities.formatDate(eventStart, Session.getScriptTimeZone(), "HH:mm");
+
+      const currentSheetDateRaw = rowRaw[CONFIG.COL_TERMIN - 1];
+      const currentSheetDateDisplay = rowDisplay[CONFIG.COL_TERMIN - 1].trim();
+
+      let sheetYear = null, sheetMonth = null, sheetDay = null;
+      if (currentSheetDateRaw instanceof Date) {
+        sheetYear = currentSheetDateRaw.getFullYear();
+        sheetMonth = currentSheetDateRaw.getMonth() + 1;
+        sheetDay = currentSheetDateRaw.getDate();
+      } else if (currentSheetDateDisplay) {
+        const parts = currentSheetDateDisplay.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})$/);
+        if (parts) {
+          if (parseInt(parts[1], 10) > 1000) {
+            sheetYear = parseInt(parts[1], 10);
+            sheetMonth = parseInt(parts[2], 10);
+            sheetDay = parseInt(parts[3], 10);
+          } else {
+            sheetDay = parseInt(parts[1], 10);
+            sheetMonth = parseInt(parts[2], 10);
+            sheetYear = parseInt(parts[3], 10);
+          }
+        }
+      }
+
+      const dateIsDifferent = (sheetYear !== calYear || sheetMonth !== calMonth || sheetDay !== calDay);
+
+      const currentSheetTimeDisplay = rowDisplay[CONFIG.COL_GODZINA - 1].trim();
+      const tMatch = currentSheetTimeDisplay.match(/(\d{1,2})[:.](\d{2})/);
+      const sheetTimeStr = tMatch ? `${tMatch[1].padStart(2, '0')}:${tMatch[2]}` : "";
+
+      const timeIsDifferent = (!isAllDay && calTimeStr !== sheetTimeStr && calTimeStr !== "");
+
+      if (dateIsDifferent || timeIsDifferent) {
+        if (dateIsDifferent) {
+          if (currentSheetDateDisplay.includes('/')) {
+            sheet.getRange(rowNum, CONFIG.COL_TERMIN).setValue(`${calDay}/${calMonth}/${calYear}`);
+          } else {
+            sheet.getRange(rowNum, CONFIG.COL_TERMIN).setValue(`${calYear}-${String(calMonth).padStart(2, '0')}-${String(calDay).padStart(2, '0')}`);
+          }
+        }
+
+        if (timeIsDifferent) {
+          sheet.getRange(rowNum, CONFIG.COL_GODZINA).setValue(calTimeStr);
+        }
+
+        const curTitle = event.getTitle();
+        if (curTitle.includes('(godzina ') && calTimeStr) {
+          event.setTitle(curTitle.replace(/\(godzina \d{1,2}:\d{2}\)/, `(godzina ${calTimeStr})`));
+        }
+      }
+    }
+
+    SpreadsheetApp.flush();
+  } catch (err) {
+    Logger.log("Błąd syncFromCalendarToSheet: " + err.toString());
+  }
+}
+
+// ============================================================================
+// FUNKCJE POMOCNICZE
+// ============================================================================
+
+/**
+ * Ustala numer wiersza nagłówkowego (aby nie nadpisywać nagłówka tabeli)
+ */
+function findHeaderRowIndex(sheet) {
+  const maxRows = Math.min(15, sheet.getLastRow());
+  if (maxRows < 1) return 1;
+  const values = sheet.getRange(1, 1, maxRows, Math.min(sheet.getLastColumn(), 10)).getDisplayValues();
+
+  for (let r = 0; r < values.length; r++) {
+    const rowStr = values[r].join(' ').toLowerCase();
+    if (rowStr.includes('termin') || rowStr.includes('badani') || rowStr.includes('lekarz')) {
+      return r + 1;
+    }
+  }
+  return 1; // Domyślnie wiersz 1
+}
+
+function getParentFolder(fileId) {
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const parents = file.getParents();
+    if (parents.hasNext()) return parents.next();
+  } catch (e) {}
+  return DriveApp.getRootFolder();
+}
+
+function findOrCreateFolderUrl(parentFolder, folderName) {
+  try {
+    const existing = parentFolder.getFoldersByName(folderName);
+    if (existing.hasNext()) return existing.next().getUrl();
+
+    const globalSearch = DriveApp.getFoldersByName(folderName);
+    if (globalSearch.hasNext()) return globalSearch.next().getUrl();
+
+    const newFolder = parentFolder.createFolder(folderName);
+    return newFolder.getUrl();
+  } catch (e) {
+    return null;
+  }
+}
+
+function dynamicGeocodeLocation(placeQuery) {
+  if (!placeQuery || placeQuery.length < 3) return '';
+  if (placeQuery.toLowerCase().includes('ul.') && /\d/.test(placeQuery)) return placeQuery;
+
+  try {
+    const response = Maps.newGeocoder().setLanguage('pl').setRegion('pl').geocode(placeQuery + ', Kraków, Polska');
+    if (response.status === 'OK' && response.results.length > 0) {
+      return response.results[0].formatted_address;
+    }
+    const fallback = Maps.newGeocoder().setLanguage('pl').setRegion('pl').geocode(placeQuery + ', Polska');
+    if (fallback.status === 'OK' && fallback.results.length > 0) {
+      return fallback.results[0].formatted_address;
+    }
+  } catch (e) {}
+  return '';
+}
+
+function buildDateTimeFromDisplay(rawDate, displayDate, displayTime) {
+  let year, month, day;
+
+  if (rawDate instanceof Date) {
+    year = rawDate.getFullYear();
+    month = rawDate.getMonth();
+    day = rawDate.getDate();
+  } else if (displayDate) {
+    const dParts = displayDate.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})$/);
+    if (dParts) {
+      if (parseInt(dParts[1], 10) > 1000) {
+        year = parseInt(dParts[1], 10);
+        month = parseInt(dParts[2], 10) - 1;
+        day = parseInt(dParts[3], 10);
+      } else {
+        day = parseInt(dParts[1], 10);
+        month = parseInt(dParts[2], 10) - 1;
+        year = parseInt(dParts[3], 10);
+      }
+    }
+  }
+
+  let hours = null, minutes = null;
+  if (displayTime) {
+    const match = displayTime.match(/(\d{1,2})[:.](\d{2})/);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+    }
+  }
+
+  if (year && hours !== null && minutes !== null) {
+    return {
+      date: new Date(year, month, day, hours, minutes, 0),
+      isAllDay: false,
+      timeString: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    };
+  } else if (year) {
+    return {
+      date: new Date(year, month, day, 0, 0, 0),
+      isAllDay: true,
+      timeString: ''
+    };
+  }
+  return { date: new Date(), isAllDay: true, timeString: '' };
+}
+
+function getExamIcon(title) {
+  const t = title.toLowerCase();
+  if (t.includes('kolonoskop') || t.includes('gastroskop') || t.includes('endoskop')) return '🩺';
+  if (t.includes('krew') || t.includes('morfolog') || t.includes('biochemi') || t.includes('mocz') || t.includes('lipid') || t.includes('tsh')) return '🩸';
+  if (t.includes('rtg') || t.includes('rezonans') || t.includes('mri') || t.includes('tomograf') || t.includes('tk') || t.includes('rentgen')) return '🩺';
+  if (t.includes('usg') || t.includes('echo')) return '🩺';
+  if (t.includes('okulist') || t.includes('wzrok') || t.includes('oczy')) return '🩺';
+  if (t.includes('stomatolog') || t.includes('ząb') || t.includes('zęb') || t.includes('dentyst')) return '🦷';
+  if (t.includes('kardiolog') || t.includes('serc') || t.includes('ekg') || t.includes('holter')) return '🩺';
+  if (t.includes('szczepien')) return '💉';
+  return '⚕️';
+}
+
+function formatDateToYYYYMMDD(d) {
+  let dateObj = (d instanceof Date) ? d : new Date(String(d).replace(/\./g, '-'));
+  return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy.MM.dd");
+}
