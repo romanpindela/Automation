@@ -1,0 +1,91 @@
+const CALENDAR_ID = 'IDKALENDARZADOUZUPELNIENIA@group.calendar.google.com';
+
+function syncPaymentsToCalendar() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
+  
+  if (!calendar) {
+    Logger.log('BŁĄD: Nie znaleziono kalendarza o ID: ' + CALENDAR_ID);
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) {
+    Logger.log('Brak danych do przetworzenia.');
+    return;
+  }
+
+  // Odczytujemy indeksy kolumn z nagłówka
+  const headers = data[0].map(h => String(h).trim().toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  const colKontrahent = headers.indexOf('kontrahent');
+  const colTytul = headers.indexOf('tytul przelewu');
+  const colKwota = headers.indexOf('kwota');
+  const colWaluta = headers.indexOf('waluta');
+  const colTermin = headers.indexOf('termin platnosci');
+  const colStatus = headers.indexOf('status');
+  const colEventId = headers.indexOf('id wydarzenia kalendarza');
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const kontrahent = row[colKontrahent];
+    const tytul = row[colTytul];
+    const kwota = row[colKwota];
+    const waluta = row[colWaluta];
+    const rawTermin = row[colTermin];
+    const rawStatus = String(row[colStatus] || '').trim().toLowerCase();
+    let eventId = String(row[colEventId] || '').trim();
+    const rowIndex = i + 1;
+
+    if (eventId && !eventId.includes('@google.com')) {
+      eventId = '';
+    }
+
+    const termin = parsePaymentDate(rawTermin);
+    
+    // Zamiana 'ł' na 'l' oraz usunięcie pozostałych ogonków
+    const status = rawStatus.replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    Logger.log(`Wiersz ${rowIndex}: status="${status}", termin=${Boolean(termin)}, brak_eventId=${!eventId}`);
+
+    // 1. DO ZAPŁATY
+    if ((status === 'do zaplaty' || status === 'do zapłaty') && termin && !eventId) {
+      const eventTitle = `💰 Płatność: ${kontrahent} (${kwota} ${waluta})`;
+      const eventDesc = `Kontrahent: ${kontrahent}\nTytuł: ${tytul}\nKwota: ${kwota} ${waluta}\nTermin: ${termin.toISOString().slice(0, 10)}`;
+      
+      const event = calendar.createAllDayEvent(eventTitle, termin, { description: eventDesc });
+      const newId = event.getId();
+      sheet.getRange(rowIndex, colEventId + 1).setValue(newId);
+      Logger.log(`SUKCES: Utworzono wydarzenie w kalendarzu, ID: ${newId}`);
+    }
+    
+    // 2. ZAPŁACONE / ANULOWANE
+    const isPaidOrCancelled = ['zaplacone', 'zaplacona', 'oplacone', 'oplacona', 'anulowane', 'anulowana'].includes(status);
+    if (isPaidOrCancelled && eventId) {
+      try {
+        const event = calendar.getEventById(eventId);
+        if (event) {
+          event.deleteEvent();
+          Logger.log(`Wiersz ${rowIndex}: Usunięto wydarzenie z kalendarza.`);
+        }
+      } catch (e) {
+        Logger.log(`Błąd usuwania: ${e.message}`);
+      }
+      sheet.getRange(rowIndex, colEventId + 1).setValue('');
+    }
+  }
+}
+
+function parsePaymentDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !isNaN(value)) return value;
+  
+  const str = String(value).trim();
+  const dmyMatch = str.match(/^(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{4})$/);
+  if (dmyMatch) {
+    return new Date(dmyMatch[3], dmyMatch[2] - 1, dmyMatch[1]);
+  }
+  
+  const parsed = new Date(str);
+  return isNaN(parsed) ? null : parsed;
+}
