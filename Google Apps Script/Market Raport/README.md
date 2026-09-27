@@ -35,3 +35,11 @@ Aby skrypt uruchamiał się samoczynnie w wybranym interwale (np. co tydzień):
 
 ## Struktura arkusza
 Skrypt automatycznie przypisuje i dopisuje zebrane zmienne do ostatniego pustego wiersza za pomocą funkcji `appendRow()`. Pamiętaj, aby nie zmieniać kolejności kolumn w Twoim bazowym arkuszu po jego wstępnym skonfigurowaniu, ponieważ skrypt przekazuje dane w stałej, zdefiniowanej sekwencji (od daty, przez krypto, indeksy, aż po obligacje)[cite: 1].
+
+## Screenshots & Examples
+
+### Raport rynkowy na emailu
+![PowerShell Output](assets/Raport_rynkowy_email.jpg)
+
+### Market Data gsheet
+![HTML Report](assets/Market_Data_gsheet.jpg)
