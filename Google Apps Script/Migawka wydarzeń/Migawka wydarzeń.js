@@ -94,8 +94,9 @@ function generujRaportWiadomosci() {
   sortujIGrupujWyniki(wynikiGlobalnePrzeszle, 1, 0);
   sortujIGrupujWyniki(wynikiGlobalnePrzyszle, 1, 0);
 
-  let naglowki1 = ["Obszar / Lokalizacja", "Data / Dzień", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
-  let naglowki2 = ["Data wydarzenia", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
+  // ZŁĄCZONO ŹRÓDŁO + LINK W JEDNĄ KOLUMNĘ
+  let naglowki1 = ["Obszar / Lokalizacja", "Data / Dzień", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło / Link"];
+  let naglowki2 = ["Data wydarzenia", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło / Link"];
 
   zapiszDoArkusza(ss, "1. Lokalne - Przyszłe", wynikiLokalePrzyszle, naglowki1);
   zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", wynikiGlobalnePrzeszle, naglowki2);
@@ -159,11 +160,11 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
       "- Wybierz WYŁĄCZNIE wydarzenia w PRZYSZŁOŚCI w okresie nadchodzących 7 dni.\n" +
       "- Całkowicie pomijaj wydarzenia archiwalne (przeszłe) oraz kursy stałe dla dorosłych bez konkretnych dat w nadchodzącym tygodniu.";
-    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
+    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło / Link\"";
   } else {
     let typOpis = (typRaportu === "globalne_przeszle") ? "co się wydarzyło w minionych 7 dniach" : "co się wydarzy w najbliższych 7 dniach";
     instrukcjaCzasowa = "Analizuj pod kątem kategorii: " + typOpis + ".";
-    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
+    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło / Link\"";
   }
 
   let systemPrompt = "Jesteś analitykiem. \n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"" + trescZrodla + "\"\"\"\nZwróć JSON:\n{\"dane\": [[" + strukturaKolumn + "]]}";
@@ -172,7 +173,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON." }
+      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON. Wypełnij pole Źródło / Link jako jeden element: źródło + adres URL." }
     ],
     response_format: { type: "json_object" },
     temperature: 0.0
@@ -193,6 +194,14 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   } catch (e) {
     return [];
   }
+}
+
+function sformatujZrodloILink(zrodlo, link) {
+  let z = String(zrodlo || "").trim();
+  let l = String(link || "").trim();
+  if (!z && !l) return "";
+  if (z && l) return z + " — " + l;
+  return z || l;
 }
 
 function wyczyscHtmlDoTekstu(html) {
@@ -217,9 +226,20 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
   sheet.clear();
   sheet.appendRow(nagłówki);
   sheet.getRange(1, 1, 1, nagłówki.length).setFontWeight("bold").setBackground("#f3f3f3");
-  if (dane && dane.length > 0) {
-    let startRow = (dane[0][0] === nagłówki[0]) ? 1 : 0;
-    for (let i = startRow; i < dane.length; i++) sheet.appendRow(dane[i]);
+
+  let daneDoZapisania = dane;
+  if (daneDoZapisania && daneDoZapisania.length > 0 && daneDoZapisania[0].length > nagłówki.length) {
+    daneDoZapisania = daneDoZapisania.map(wiersz => {
+      if (wiersz.length >= 2 && /^https?:\/\//i.test(String(wiersz[wiersz.length - 1] || ""))) {
+        return wiersz.slice(0, -2).concat([sformatujZrodloILink(wiersz[wiersz.length - 2], wiersz[wiersz.length - 1])]);
+      }
+      return wiersz;
+    });
+  }
+
+  if (daneDoZapisania && daneDoZapisania.length > 0) {
+    let startRow = (daneDoZapisania[0][0] === nagłówki[0]) ? 1 : 0;
+    for (let i = startRow; i < daneDoZapisania.length; i++) sheet.appendRow(daneDoZapisania[i]);
   }
   sheet.autoResizeColumns(1, nagłówki.length);
 }
@@ -252,7 +272,7 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
             <tr><td style="${tdStyle}"><b>Myślenice & Tarnów</b></td><td style="${tdStyle}">wydarzenia.miasto-info.pl, csm.tarnow.pl, kultura.tarnow.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Małopolska (Regionalne)</b></td><td style="${tdStyle}">malopolska.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Informacje ogólnopolskie (Polska)</b></td><td style="${tdStyle}">zero.pl, forsal.pl, biznes.pap.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Globalne / Świat / Europa</b></td><td style="${tdStyle}">reuters.com, politico.eu, rp.pl/wydarzenia/swiat</td></tr>
+            <tr><td style="${tdStyle}"><b>Globalne / Świat / Europa</b></td><td style="${tdStyle}">politico.eu, rp.pl/wydarzenia/swiat</td></tr>
           </tbody>
         </table>
       </div>
@@ -362,16 +382,26 @@ function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrup
     let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
     html += "<tr style=\"" + stylTla + "\">";
     
-    wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "");
-      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+    for (let index = 0; index < wiersz.length; index++) {
+      let zawartosc = String(wiersz[index] || "");
+      if (index === wiersz.length - 2 && wiersz.length >= 2 && /^https?:\/\//i.test(String(wiersz[wiersz.length - 1] || ""))) {
+        let zrodlo = zawartosc;
+        let link = String(wiersz[wiersz.length - 1] || "");
+        zawartosc = zrodlo + " — <a href=\"" + link + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + "; font-weight: bold; text-decoration: none;\">Otwórz link</a>";
+        html += "<td style=\"border: 1px solid #cbd5e1; padding: 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
+        break;
+      }
 
+      if (index === wiersz.length - 1 && /^https?:\/\//i.test(zawartosc)) {
+        continue;
+      }
+
+      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
       if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
         zawartosc = "<a href=\"" + zawartosc + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + "; font-weight: bold; text-decoration: none;\">Otwórz link</a>";
       }
-      
       html += "<td style=\"border: 1px solid #cbd5e1; padding: 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
-    });
+    }
     
     html += "</tr>";
     i++;
@@ -407,16 +437,26 @@ function generujTabeleDoPdf(dane, nagłówki, kolorNaglowka, kolorTla, indeksGru
     let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
     html += "<tr style=\"" + stylTla + "\">";
     
-    wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "");
-      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+    for (let index = 0; index < wiersz.length; index++) {
+      let zawartosc = String(wiersz[index] || "");
+      if (index === wiersz.length - 2 && wiersz.length >= 2 && /^https?:\/\//i.test(String(wiersz[wiersz.length - 1] || ""))) {
+        let zrodlo = zawartosc;
+        let link = String(wiersz[wiersz.length - 1] || "");
+        zawartosc = zrodlo + " — <a href=\"" + link + "\" style=\"color: " + kolorNaglowka + "; text-decoration: underline;\">Link</a>";
+        html += "<td style=\"border: 1px solid #cbd5e1; padding: 6px 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
+        break;
+      }
 
+      if (index === wiersz.length - 1 && /^https?:\/\//i.test(zawartosc)) {
+        continue;
+      }
+
+      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
       if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
         zawartosc = "<a href=\"" + zawartosc + "\" style=\"color: " + kolorNaglowka + "; text-decoration: underline;\">Link</a>";
       }
-      
       html += "<td style=\"border: 1px solid #cbd5e1; padding: 6px 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
-    });
+    }
     
     html += "</tr>";
     i++;
