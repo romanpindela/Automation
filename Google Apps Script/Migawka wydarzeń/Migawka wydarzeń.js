@@ -4,26 +4,14 @@
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  const SOURCES_LOKALNE = [
-    { url: "https://przedszkole140.blizej.info/", group: "Szkoły / Przedszkola" },
-    { url: "https://sokolska.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://borek.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://iskierka.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://smcegielniana.pl/kategoria/aktualnosci", group: "Łagiewniki" },
-    { url: "https://dzielnica9.krakow.pl/", group: "Łagiewniki" },
-    { url: "https://wydarzenia.miasto-info.pl/", group: "Myślenice" },
-    { url: "https://csm.tarnow.pl/wydarzenia/dla-dzieci", group: "Tarnów" },
-    { url: "https://kultura.tarnow.pl/wydarzenia/miesiac/", group: "Tarnów" },
-    { url: "https://www.malopolska.pl/", group: "Małopolska" }
-  ];
-
-  const SOURCES_GLOBALNE = [
-    { url: "https://zero.pl/kategoria/kraj", group: "Polska" },
-    { url: "https://forsal.pl/", group: "Polska/Gospodarka" },
-    { url: "https://www.politico.eu", group: "Europa/Polityka" },
-    { url: "https://biznes.pap.pl", group: "Polska/Gospodarka" },
-    { url: "https://www.rp.pl/wydarzenia/swiat", group: "Świat" }
-  ];
+  // Wczytanie źródeł i promptu z folderu: Automation/Migawka Wydarzeń na Google Dysku
+  const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
+  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
+  let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
+  
+  if (!filtrProfilu) {
+    filtrProfilu = "Brak zewnętrznego promptu - domyślny tryb analityka.";
+  }
 
   let dzisiaj = new Date();
   let dzisiajStr = dzisiaj.toISOString().split('T')[0];
@@ -74,9 +62,8 @@ function generujRaportWiadomosci() {
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let wynikiZrodla = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle");
+      let wynikiZrodla = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
       if (wynikiZrodla) {
-        // Filtr programistyczny: odrzucamy absolutnie wszystko, co zawiera słowo ODRZUCONE
         let przefiltrowane = wynikiZrodla.filter(row => {
           let calyWierszStr = row.join(" ").toUpperCase();
           return !calyWierszStr.includes("ODRZUCONE");
@@ -89,13 +76,13 @@ function generujRaportWiadomosci() {
   SOURCES_GLOBALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let wynikiPrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle");
+      let wynikiPrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
       if (wynikiPrzeszle) {
         let przefiltrowanePrzeszle = wynikiPrzeszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
         wynikiGlobalnePrzeszle = wynikiGlobalnePrzeszle.concat(przefiltrowanePrzeszle);
       }
 
-      let wynikiPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle");
+      let wynikiPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
       if (wynikiPrzyszle) {
         let przefiltrowanePrzyszle = wynikiPrzyszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
         wynikiGlobalnePrzyszle = wynikiGlobalnePrzyszle.concat(przefiltrowanePrzyszle);
@@ -117,17 +104,52 @@ function generujRaportWiadomosci() {
   wyslijRaportEmail(wynikiLokalePrzyszle, wynikiGlobalnePrzeszle, wynikiGlobalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
 }
 
-function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu) {
+/**
+ * Pomocnicza funkcja do nawigacji po folderach i pobierania zawartości pliku tekstowego.
+ */
+function wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
+  try {
+    let folderyGlowne = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!folderyGlowne.hasNext()) throw new Error("Nie znaleziono folderu głównego: " + nazwaGlownegoFolderu);
+    
+    let folderGlowny = folderyGlowne.next();
+    let podfoldery = folderGlowny.getFoldersByName(nazwaPodfolderu);
+    if (!podfoldery.hasNext()) throw new Error("Nie znaleziono podfolderu: " + nazwaPodfolderu);
+    
+    let podfolder = podfoldery.next();
+    let pliki = podfolder.getFilesByName(nazwaPliku);
+    
+    if (pliki.hasNext()) {
+      return pliki.next().getBlob().getDataAsString();
+    } else {
+      throw new Error("Nie znaleziono pliku: " + nazwaPliku + " w folderze " + nazwaGlownegoFolderu + "/" + nazwaPodfolderu);
+    }
+  } catch (e) {
+    Logger.log("Błąd odczytu pliku " + nazwaPliku + ": " + e.message);
+    return null;
+  }
+}
+
+/**
+ * Pomocnicza funkcja do wczytywania tablicy JSON z konkretnego folderu na Dysku.
+ */
+function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
+  let tresc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
+  if (!tresc) return null;
+  
+  try {
+    return JSON.parse(tresc);
+  } catch (e) {
+    Logger.log("Błąd parsowania JSON dla pliku " + nazwaPliku + ": " + e.message);
+    return null;
+  }
+}
+
+function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
   if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
-
-  let filtrProfilu = 
-    "PROFIL UŻYTKOWNIKA I INSTRUKCJA ANALIZY (BEZWZGLĘDNY FILTR ODSEJNIKOWY):\n" +
-    "- Jesteś filtrem i analitykiem dla mężczyzny, ojca dwóch dziewczynek mieszkającego w Krakowie, interesującego się inwestycjami, gospodarką, polityką rynkową oraz wartościowym czasem spędzanym z rodziną.\n" +
-    "- KATEGORYCZNIE ODRZUĆ I NIE ZWRACAJ W WYNIKU: informacji o seniorach, stowarzyszeniach emerytów, kołach gospodyń, osoby niepełnosprawne, dramy, celebrytów, plotki, wypadki drogowe, incydenty policyjne, kryminalne, patologie, klęski żywiołowe, wypadki drogowe, służbę zdrowia (chyba że przełom makroekonomiczny), wieczory poetyckie dla dorosłych, spotkania lokalnych rad osiedli bez znaczenia, a także oferty zajęć stałych dla dorosłych (np. ceramika dla dorosłych, kluby dyskusyjne dla dorosłych).\n" +
-    "- ZWROTNY FORMAT: Zwracaj WYŁĄCZNIE pozycje zakwalifikowane jako trafione lub potencjalnie trafione. POD ŻADNYM POZOREM nie umieszczaj w JSON-ie rekordów z etykietą ODRZUCONE.";
 
   let instrukcjaCzasowa = "";
   let strukturaKolumn = "";
