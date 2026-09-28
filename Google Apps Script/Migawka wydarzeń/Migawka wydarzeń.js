@@ -12,7 +12,6 @@ function generujRaportWiadomosci() {
     { url: "https://iskierka.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
     { url: "https://smcegielniana.pl/kategoria/aktualnosci", group: "Łagiewniki" },
     { url: "https://dzielnica9.krakow.pl/", group: "Łagiewniki" },
-    { url: "https://wydarzenia.miasto-info.pl/", group: "Myślenice" },
     { url: "https://csm.tarnow.pl/wydarzenia/dla-dzieci", group: "Tarnów" },
     { url: "https://kultura.tarnow.pl/wydarzenia/miesiac/", group: "Tarnów" },
     { url: "https://www.malopolska.pl/", group: "Małopolska" }
@@ -26,8 +25,15 @@ function generujRaportWiadomosci() {
     { url: "https://www.rp.pl/wydarzenia/swiat", group: "Świat" }
   ];
 
-  const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || SOURCES_LOKALNE_DOMYSLNE;
-  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || SOURCES_GLOBALNE_DOMYSLNE;
+  const SOURCES_LOKALNE = normalizujZrodla(
+    wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json"),
+    SOURCES_LOKALNE_DOMYSLNE
+  );
+
+  const SOURCES_GLOBALNE = normalizujZrodla(
+    wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json"),
+    SOURCES_GLOBALNE_DOMYSLNE
+  );
 
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   if (!filtrProfilu) {
@@ -157,6 +163,31 @@ function generujRaportWiadomosci() {
   zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", wynikiGlobalnePrzyszle, naglowki2);
 
   wyslijRaportEmail(wynikiLokaleWszystkie, wynikiGlobalnePrzeszle, wynikiGlobalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
+}
+
+function normalizujZrodla(zrodlaZPliku, zrodlaDomyslne) {
+  const zrodlaIgnorowane = new Set([
+    "https://wydarzenia.miasto-info.pl/"
+  ]);
+
+  let zrodla = Array.isArray(zrodlaZPliku) ? zrodlaZPliku : [];
+  if (!zrodla.length && Array.isArray(zrodlaDomyslne)) {
+    zrodla = zrodlaDomyslne;
+  }
+
+  return zrodla
+    .map(item => {
+      if (!item || typeof item !== "object") return null;
+      let url = String(item.url || "").trim();
+      if (!url || !/^https?:\/\//i.test(url)) return null;
+      if (zrodlaIgnorowane.has(url)) return null;
+      return {
+        url: url,
+        group: String(item.group || "").trim() || "Inne"
+      };
+    })
+    .filter(Boolean)
+    .filter((item, index, arr) => arr.findIndex(x => x.url === item.url) === index);
 }
 
 function normalizujWynikLokalny(row) {
@@ -293,13 +324,13 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
   }
 
-  let systemPrompt = "Jesteś zaawansowanym filtrem analitycznym.\n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\n" + instrukcjaRozszerzona + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"" + trescZrodla + "\"\"\"\nZwróć JSON:\n{\"dane\": [[" + strukturaKolumn + "]]}";
+  let systemPrompt = "Jesteś zaawansowanym filtrem analitycznym.\n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\n" + instrukcjaRozszerzona + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"\n" + trescZrodla + "\n\"\"\"\n\nWyciągnij TYLKO te wydarzenia, które są istotne i spełniają kryteria czasu oraz tematyczne.\n\nOdpowiedź MUSI być w formacie JSON: {\"dane\": [[...kolumny...]]}.\nUzupełnij wszystkie pola: Obszar / Lokalizacja lub Data wydarzenia, Godzina, Dla kogo (wiek), Warunki wstępu, Źródło / Link.\nZwracaj wyłącznie JSON bez żadnych komentarzy, notatek i markdown.";
 
   const payload = {
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON. Pamiętaj, aby uzupełnić wszystkie pola: Data / Dzień, Godzina, Dla kogo (wiek), Warunki wstępu oraz Źródło / Link w formacie 'Nazwa — URL'." }
+      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON. Pamiętaj, aby uzupełnić wszystkie pola: Data / Dzień, Godzina, Dla kogo (wiek), Warunki wstępu oraz Źródło / Link. Nie zwracaj nic poza JSON.\n\nStruktura danych: [\n  [" + strukturaKolumn + "]\n]" }
     ],
     response_format: { type: "json_object" },
     temperature: 0.0
@@ -389,7 +420,7 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
             <tr><td style="${tdStyle}"><b>Kraków i okolice (Przedszkola / Szkoły)</b></td><td style="${tdStyle}">przedszkole140.blizej.info</td></tr>
             <tr><td style="${tdStyle}"><b>Kraków (CK Podgórza / Sokolska / Borek / Iskierka)</b></td><td style="${tdStyle}">sokolska.ckpodgorza.pl, borek.ckpodgorza.pl, iskierka.ckpodgorza.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Kraków (Łagiewniki / Cegielniana / Dzielnica IX)</b></td><td style="${tdStyle}">smcegielniana.pl, dzielnica9.krakow.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Myślenice & Tarnów</b></td><td style="${tdStyle}">wydarzenia.miasto-info.pl, csm.tarnow.pl, kultura.tarnow.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Myślenice & Tarnów</b></td><td style="${tdStyle}">csm.tarnow.pl, kultura.tarnow.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Małopolska (Regionalne)</b></td><td style="${tdStyle}">malopolska.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Informacje ogólnopolskie (Polska)</b></td><td style="${tdStyle}">zero.pl, forsal.pl, biznes.pap.pl</td></tr>
             <tr><td style="${tdStyle}"><b>Globalne / Świat / Europa</b></td><td style="${tdStyle}">politico.eu, rp.pl/wydarzenia/swiat</td></tr>
@@ -409,14 +440,14 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
     htmlBody += generujTabeleHtml(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0);
   }
 
-  htmlBody += "<h3 style=\"color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło (Minione 7 dni)</h3>";
+  htmlBody += "<h3 style=\"color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>";
   if (!globalnePrzeszle || globalnePrzeszle.length === 0) {
     htmlBody += "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak istotnych wydarzeń w tym okresie.</em></p>";
   } else {
     htmlBody += generujTabeleHtml(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 2);
   }
 
-  htmlBody += "<h3 style=\"color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>";
+  htmlBody += "<h3 style=\"color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>";
   if (!globalnePrzyszle || globalnePrzyszle.length === 0) {
     htmlBody += "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak zapowiadanych wydarzeń w tym okresie.</em></p>";
   } else {
@@ -424,7 +455,7 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
   }
 
   htmlBody += generujTabeluZrodelHtml(false);
-  htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 11px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści AI (RSS/Web + DeepSeek LLM).</p>";
+  htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 11px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści i wydarzeń.</p>";
 
   let pdfBlob = null;
   try {
@@ -432,15 +463,15 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
       <h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
       <p style="font-family: Arial, sans-serif; color: #475569; font-size: 12px;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
 
-      <h3 style="color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące i trwające)</h3>
+      <h3 style="color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura</h3>
       ${generujTabeleDoPdf(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0)}
 
       <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
-      <h3 style="color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło (Minione 7 dni)</h3>
+      <h3 style="color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>
       ${generujTabeleDoPdf(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 2)}
 
       <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
-      <h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>
+      <h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>
       ${generujTabeleDoPdf(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 2)}
 
       <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
