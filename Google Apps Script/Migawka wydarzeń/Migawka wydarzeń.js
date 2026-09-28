@@ -109,13 +109,14 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
-  let domenaZrodla = source.url.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/^www\./, "");
 
   let filtrProfilu = 
-    "PROFIL UŻYTKOWNIKA (BEZWZGLĘDNY FILTR):\n" +
-    "- Jesteś filtrem dla mężczyzny, ojca dwóch dziewczynek z Krakowa, interesującego się inwestycjami, gospodarką, polityką i kulturą.\n" +
-    "- ODRZUĆ: seniorów, koła gospodyń, osoby niepełnosprawne, celebrytów, plotki, wypadki, kryminał, służbę zdrowia (bez przełomu makro).\n" +
-    "- ZOSTAW: ciekawe wydarzenia kulturalne/sportowe/edukacyjne dla dzieci w Krakowie, inwestycje miejskie, decyzje gospodarcze, biznes.";
+    "PROFIL UŻYTKOWNIKA I INSTRUKCJA ANALIZY (BEZWZGLĘDNY FILTR ODSEJNIKOWY):\n" +
+    "- Jesteś filtrem i analitykiem dla mężczyzny, ojca dwóch dziewczynek mieszkającego w Krakowie, interesującego się inwestycjami, gospodarką, polityką rynkową oraz wartościowym czasem spędzanym z rodziną.\n" +
+    "- KATEGORYCZNIE ODRZUĆ: informacje o seniorach, stowarzyszeniach emerytów, kołach gospodyń, osoby niepełnosprawne, dramy, celebrytów, plotki, wypadki drogowe, incydenty policyjne, kryminalne, patologie, służbę zdrowia (chyba że przełom makroekonomiczny), wieczory poetyckie dla dorosłych, spotkania lokalnych rad osiedli bez znaczenia.\n" +
+    "- ZOSTAW TYLKO: ciekawe wydarzenia kulturalne/sportowe/edukacyjne dla dzieci i rodzin w Krakowie i okolicy, inwestycje miejskie, kluczowe decyzje polityczno-gospodarcze, wskaźniki makroekonomiczne i biznes.\n\n" +
+    "WYMAGANA STRUKTURA RAPORTU 1 (SZCZEGÓŁOWA ANALIZA WYDARZENIA DZIECIĘCEGO/RODZINNEGO):\n" +
+    "Dla każdego zakwalifikowanego wydarzenia przygotuj pogłębioną analizę według kryteriów: nazwa/lokalizacja, profil atrakcji, wartość dla dzieci, jakość spędzania czasu z rodzicem, logistyka/komfort oraz rekomendacja (1-5).";
 
   let strukturaKolumn = (typRaportu === "lokalne_przyszle") 
     ? "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\""
@@ -180,14 +181,14 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
 }
 
 /**
- * Przywrócony układ sekcyjny z profesjonalną, nowoczesną kolorystyką w wiadomości e-mail.
+ * Wysyła ładny raport e-mail oraz załącza PDF w układzie poziomym z nowymi stronami dla każdej sekcji.
  */
 function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
   let emailAdres = Session.getActiveUser().getEmail();
   let temat = "📰 Migawka wydarzeń (" + dzisiajStr + ")";
 
   let htmlBody = "<h2 style=\"color: #1e293b; font-family: Arial, sans-serif;\">🎯 Osobisty Przegląd Wiadomości i Wydarzeń (" + dzisiajStr + ")</h2>" +
-                 "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 13px;\">Raport wydarzeń w Krakowie.</p>";
+                 "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 13px;\">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>";
 
   // Sekcja 1: Lokalne
   htmlBody += "<h3 style=\"color: #047857; border-bottom: 2px solid #047857; padding-bottom: 5px; margin-top: 25px; font-family: Arial, sans-serif;\">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące wydarzenia)</h3>";
@@ -215,16 +216,54 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
 
   htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 11px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści AI (RSS/Web + DeepSeek LLM).</p>";
 
-  MailApp.sendEmail({
+  // --- GENEROWANIE PDF Z UKŁADEM POZIOMYM I NOWYMI STRONAMI DLA KAŻDEJ SEKCJI ---
+  let pdfBlob = null;
+  try {
+    let pdfZawartosc = `
+      <h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Osobisty Przegląd Wiadomości i Wydarzeń (${dzisiajStr})</h2>
+      <p style="font-family: Arial, sans-serif; color: #475569; font-size: 12px;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
+      
+      <!-- SEKCJA 1 -->
+      <h3 style="color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące wydarzenia)</h3>
+      ${generujTabeleDoPdf(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0)}
+
+      <!-- SEKCJA 2 (Nowa strona) -->
+      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
+      <h3 style="color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło (Minione 7 dni)</h3>
+      ${generujTabeleDoPdf(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 1)}
+
+      <!-- SEKCJA 3 (Nowa strona) -->
+      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
+      <h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>
+      ${generujTabeleDoPdf(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1)}
+    `;
+
+    let completeHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+      @page { size: A4 landscape; margin: 1cm; }
+      body { font-family: Arial, sans-serif; }
+    </style></head><body>${pdfZawartosc}</body></html>`;
+
+    let blob = Utilities.newBlob(completeHtml, 'text/html', 'temp.html');
+    pdfBlob = blob.getAs('application/pdf').setName("Raport_Wiadomosci_" + dzisiajStr + ".pdf");
+  } catch (e) {
+    Logger.log("Błąd generowania PDF: " + e.message);
+  }
+
+  let emailOptions = {
     to: emailAdres,
     subject: temat,
     htmlBody: htmlBody
-  });
+  };
+
+  if (pdfBlob) {
+    emailOptions.attachments = [pdfBlob];
+  }
+
+  MailApp.sendEmail(emailOptions);
 }
 
 function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
   let html = "<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px; margin-top: 10px;\">";
-  
   html += "<tr style=\"background-color: " + kolorNaglowka + "; color: white;\">";
   nagłówki.forEach(naglowek => {
     html += "<th style=\"border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 11px;\">" + naglowek + "</th>";
@@ -236,7 +275,6 @@ function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrup
   
   dane.forEach(wiersz => {
     let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
-    
     if (aktualnaGrupa !== ostatniaGrupa) {
       html += "<tr style=\"background-color: #f1f5f9;\">";
       html += "<td colspan=\"" + nagłówki.length + "\" style=\"border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #334155; font-size: 11px;\">📌 Obszar / Region: " + aktualnaGrupa + "</td>";
@@ -257,6 +295,51 @@ function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrup
       }
       
       html += "<td style=\"border: 1px solid #cbd5e1; padding: 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
+    });
+    
+    html += "</tr>";
+    i++;
+  });
+
+  html += "</table>";
+  return html;
+}
+
+function generujTabeleDoPdf(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
+  if (!dane || dane.length === 0) return "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak wpisów w tej sekcji.</em></p>";
+  
+  let html = "<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px;\">";
+  html += "<tr style=\"background-color: " + kolorNaglowka + "; color: white;\">";
+  nagłówki.forEach(naglowek => {
+    html += "<th style=\"border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-size: 10px;\">" + naglowek + "</th>";
+  });
+  html += "</tr>";
+
+  let ostatniaGrupa = "";
+  let i = 0;
+  
+  dane.forEach(wiersz => {
+    let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
+    if (aktualnaGrupa !== ostatniaGrupa) {
+      html += "<tr style=\"background-color: #f1f5f9;\">";
+      html += "<td colspan=\"" + nagłówki.length + "\" style=\"border: 1px solid #cbd5e1; padding: 5px 8px; font-weight: bold; color: #334155; font-size: 10px;\">📌 Obszar / Region: " + aktualnaGrupa + "</td>";
+      html += "</tr>";
+      ostatniaGrupa = aktualnaGrupa;
+      i = 0;
+    }
+
+    let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
+    html += "<tr style=\"" + stylTla + "\">";
+    
+    wiersz.forEach((komorka, index) => {
+      let zawartosc = String(komorka || "");
+      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+
+      if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
+        zawartosc = "<a href=\"" + zawartosc + "\" style=\"color: " + kolorNaglowka + "; text-decoration: underline;\">Link</a>";
+      }
+      
+      html += "<td style=\"border: 1px solid #cbd5e1; padding: 6px 8px; color: #1e293b; vertical-align: top;\">" + zawartosc + "</td>";
     });
     
     html += "</tr>";
