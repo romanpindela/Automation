@@ -6,7 +6,7 @@ function generujRaportWiadomosci() {
   
   // Wczytanie źródeł i promptu z folderu: Automation/Migawka Wydarzeń na Google Dysku
   const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
-  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
+  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Gebeurtenieén", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   
   if (!filtrProfilu) {
@@ -225,91 +225,32 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
 }
 
 /**
- * Wysyła raport e-mail oraz załącza PDF z poprawionym nagłówkiem i tabelą źródeł na końcu.
- * OPTYMALIZACJA: Limit na ilość wpisów w email (pozostałe w Spreadsheet)
+ * Wysyła minimalny email z PDF (unika limitu rozmiaru wiadomości)
  */
 function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
   let emailAdres = Session.getActiveUser().getEmail();
   let temat = "📰 Migawka Wydarzeń (" + dzisiajStr + ")";
-  
-  const MAX_ROWS_EMAIL = 20;
-  let lokalnePrzyszleEmail = (lokalnePrzyszle || []).slice(0, MAX_ROWS_EMAIL);
-  let globalnePrzeszleEmail = (globalnePrzeszle || []).slice(0, MAX_ROWS_EMAIL);
-  let globalnePrzyszleEmail = (globalnePrzyszle || []).slice(0, MAX_ROWS_EMAIL);
 
-  let cssStyles = `<style>
-    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px; }
-    th { border: 1px solid #cbd5e1; padding: 5px; text-align: left; font-size: 9px; color: white; }
-    td { border: 1px solid #cbd5e1; padding: 5px; color: #1e293b; }
-    .group-header { background-color: #f1f5f9; font-weight: bold; color: #334155; }
-    .alt-row { opacity: 0.95; }
-    h2 { color: #1e293b; font-family: Arial, sans-serif; margin: 10px 0; }
-    h3 { border-bottom: 2px solid; padding-bottom: 5px; margin-top: 20px; font-family: Arial, sans-serif; }
-    .sources-table th { background-color: #334155; }
-    .sources-table td { font-size: 9px; color: #64748b; }
-  </style>`;
-
-  let htmlBody = cssStyles;
-  htmlBody += "<h2>🎯 Migawka Wydarzeń (" + dzisiajStr + ")</h2>";
-  htmlBody += "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 12px;\">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>";
-
-  htmlBody += "<h3 style=\"color: #047857;\">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące)</h3>";
-  if (!lokalnePrzyszleEmail || lokalnePrzyszleEmail.length === 0) {
-    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak nadchodzących wydarzeń spełniających kryteria w najbliższych dniach.</em></p>";
-  } else {
-    htmlBody += generujTabeleHtmlOpt(lokalnePrzyszleEmail, naglowki1, "#047857", "#ecfdf5", 0);
-    if (lokalnePrzyszle.length > MAX_ROWS_EMAIL) {
-      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + lokalnePrzyszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
-    }
-  }
-
-  htmlBody += "<h3 style=\"color: #4338ca;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>";
-  if (!globalnePrzeszleEmail || globalnePrzeszleEmail.length === 0) {
-    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak istotnych wydarzeń w tym okresie.</em></p>";
-  } else {
-    htmlBody += generujTabeleHtmlOpt(globalnePrzeszleEmail, naglowki2, "#4338ca", "#e0e7ff", 1);
-    if (globalnePrzeszle.length > MAX_ROWS_EMAIL) {
-      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + globalnePrzeszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
-    }
-  }
-
-  htmlBody += "<h3 style=\"color: #b45309;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>";
-  if (!globalnePrzyszleEmail || globalnePrzyszleEmail.length === 0) {
-    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak zapowiadanych wydarzeń w tym okresie.</em></p>";
-  } else {
-    htmlBody += generujTabeleHtmlOpt(globalnePrzyszleEmail, naglowki2, "#b45309", "#fef3c7", 1);
-    if (globalnePrzyszle.length > MAX_ROWS_EMAIL) {
-      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + globalnePrzyszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
-    }
-  }
-
-  htmlBody += generujTabeluZrodelHtmlOpt();
-  htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 10px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści • Pełne dane w powiązanym Arkuszu Google</p>";
+  // Minimalna wiadomość w emailu
+  let htmlBody = "<h2 style=\"color: #1e293b; font-family: Arial, sans-serif;\">🎯 Migawka Wydarzeń (" + dzisiajStr + ")</h2>" +
+    "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 13px;\">Raport został przygotowany i jest dostępny jako plik PDF.</p>" +
+    "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 12px;\">" +
+      "📊 Statystyka:<br>" +
+      "• Lokalne (przyszłe): " + (lokalnePrzyszle ? lokalnePrzyszle.length : 0) + " wpisów<br>" +
+      "• Świat (przeszłe): " + (globalnePrzeszle ? globalnePrzeszle.length : 0) + " wpisów<br>" +
+      "• Świat (przyszłe): " + (globalnePrzyszle ? globalnePrzyszle.length : 0) + " wpisów" +
+    "</p>" +
+    "<p style=\"font-family: Arial, sans-serif; color: #94a3b8; font-size: 11px;\">Pełne dane znajdują się w powiązanym Arkuszu Google i załączniku PDF.</p>";
 
   let pdfBlob = null;
   try {
-    let pdfZawartosc = `${cssStyles}
-      <h2>🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
-      <p style="font-size: 11px; color: #475569;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
-      
-      <h3 style="color: #047857;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura</h3>
-      ${generujTabelePdfOpt(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0)}
-
-      <div style="page-break-before: always; padding-top: 10px;"></div>
-      <h3 style="color: #4338ca;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>
-      ${generujTabelePdfOpt(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 1)}
-
-      <div style="page-break-before: always; padding-top: 10px;"></div>
-      <h3 style="color: #b45309;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>
-      ${generujTabelePdfOpt(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1)}
-
-      <div style="page-break-before: always; padding-top: 10px;"></div>
-      ${generujTabeluZrodelHtmlOpt(true)}
-    `;
-
+    let pdfZawartosc = generujPdfContent(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
     let completeHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
       @page { size: A4 landscape; margin: 1cm; }
       body { font-family: Arial, sans-serif; }
+      table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+      th { background-color: #334155; color: white; border: 1px solid #cbd5e1; padding: 4px; font-size: 8px; }
+      td { border: 1px solid #cbd5e1; padding: 4px; font-size: 8px; }
     </style></head><body>${pdfZawartosc}</body></html>`;
 
     let blob = Utilities.newBlob(completeHtml, 'text/html', 'temp.html');
@@ -331,101 +272,57 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
   MailApp.sendEmail(emailOptions);
 }
 
-function generujTabeleHtmlOpt(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
-  let html = "<table style=\"background-color: " + kolorNaglowka + ";\">";
-  html += "<tr style=\"color: white;\">";
-  nagłówki.forEach(naglowek => {
-    html += "<th>" + naglowek + "</th>";
-  });
-  html += "</tr>";
+/**
+ * Generuje zawartość PDF (bez wysyłania w emailu)
+ */
+function generujPdfContent(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
+  let html = `<h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Migawka Wydarzeń (${dzisiajStr})</h2>`;
+  html += `<p style="font-family: Arial, sans-serif; color: #475569; font-size: 12px;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>`;
 
-  let ostatniaGrupa = "";
-  let i = 0;
-  
-  dane.forEach(wiersz => {
-    let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
-    if (aktualnaGrupa !== ostatniaGrupa) {
-      html += "<tr class=\"group-header\"><td colspan=\"" + nagłówki.length + "\">📌 " + aktualnaGrupa + "</td></tr>";
-      ostatniaGrupa = aktualnaGrupa;
-      i = 0;
-    }
+  // Sekcja 1
+  html += `<h3 style="color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🎡 1. Lokalne</h3>`;
+  html += generujTabelePdf(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0);
 
-    let stylTla = (i % 2 === 0) ? "" : "background-color: " + kolorTla + ";";
-    html += "<tr style=\"" + stylTla + "\">";
-    
-    wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-      if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
-        zawartosc = "<a href=\"" + zawartosc + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + ";\">Otwórz</a>";
-      }
-      html += "<td>" + zawartosc + "</td>";
-    });
-    
-    html += "</tr>";
-    i++;
-  });
+  html += `<div style="page-break-before: always; padding-top: 10px;"></div>`;
+  html += `<h3 style="color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">📊 2. Świat - Przeszłe</h3>`;
+  html += generujTabelePdf(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 1);
 
-  html += "</table>";
+  html += `<div style="page-break-before: always; padding-top: 10px;"></div>`;
+  html += `<h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat - Przyszłe</h3>`;
+  html += generujTabelePdf(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1);
+
   return html;
 }
 
-function generujTabelePdfOpt(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
-  if (!dane || dane.length === 0) return "<p style=\"font-size: 10px; color: #64748b;\"><em>Brak wpisów w tej sekcji.</em></p>";
-  
-  let html = "<table style=\"background-color: " + kolorNaglowka + ";\">";
-  html += "<tr style=\"color: white; font-size: 9px;\">";
-  nagłówki.forEach(naglowek => {
-    html += "<th>" + naglowek + "</th>";
-  });
-  html += "</tr>";
+/**
+ * Generuje tabelę PDF z kompresją
+ */
+function generujTabelePdf(dane, naglowki, kolorNaglowka, kolorTla, indeksGrupy) {
+  if (!dane || dane.length === 0) return `<p style="font-size: 10px; color: #64748b;">Brak danych.</p>`;
+
+  let html = `<table style="background-color: ${kolorNaglowka};">`;
+  html += `<tr style="color: white;">`;
+  naglowki.forEach(n => html += `<th>${n}</th>`);
+  html += `</tr>`;
 
   let ostatniaGrupa = "";
-  let i = 0;
-  
   dane.forEach(wiersz => {
-    let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
-    if (aktualnaGrupa !== ostatniaGrupa) {
-      html += "<tr class=\"group-header\" style=\"font-size: 9px;\"><td colspan=\"" + nagłówki.length + "\">📌 " + aktualnaGrupa + "</td></tr>";
-      ostatniaGrupa = aktualnaGrupa;
-      i = 0;
+    let grupa = String(wiersz[indeksGrupy] || "Inne");
+    if (grupa !== ostatniaGrupa) {
+      html += `<tr style="background-color: #f1f5f9;"><td colspan="${naglowki.length}" style="font-weight: bold; font-size: 8px;">📌 ${grupa}</td></tr>`;
+      ostatniaGrupa = grupa;
     }
-
-    let stylTla = (i % 2 === 0) ? "" : "background-color: " + kolorTla + ";";
-    html += "<tr style=\"" + stylTla + " font-size: 8px;\">";
-    
-    wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-      if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
-        zawartosc = "<a href=\"" + zawartosc + "\" style=\"color: " + kolorNaglowka + ";\">Link</a>";
+    html += `<tr>`;
+    wiersz.forEach((k, idx) => {
+      let val = String(k || "");
+      if (idx === wiersz.length - 1 && val.startsWith('http')) {
+        val = `<a href="${val}" style="color: ${kolorNaglowka};">Link</a>`;
       }
-      html += "<td>" + zawartosc + "</td>";
+      html += `<td>${val}</td>`;
     });
-    
-    html += "</tr>";
-    i++;
+    html += `</tr>`;
   });
+  html += `</table>`;
 
-  html += "</table>";
   return html;
-}
-
-function generujTabeluZrodelHtmlOpt(isPdf = false) {
-  let fontSize = isPdf ? "8px" : "9px";
-  return `
-    <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-      <h4 style="margin: 0 0 5px 0; font-size: 10px; color: #64748b; text-transform: uppercase;">Monitorowane źródła</h4>
-      <table class="sources-table" style="font-size: ${fontSize};">
-        <thead><tr><th>Kategoria / Region</th><th>Adresy URL</th></tr></thead>
-        <tbody>
-          <tr><td><b>Kraków (Przedszkola)</b></td><td>przedszkole140.blizej.info</td></tr>
-          <tr><td><b>Kraków (CK Podgórza)</b></td><td>sokolska.ckpodgorza.pl, borek.ckpodgorza.pl, iskierka.ckpodgorza.pl</td></tr>
-          <tr><td><b>Kraków (Łagiewniki)</b></td><td>smcegielniana.pl, dzielnica9.krakow.pl</td></tr>
-          <tr><td><b>Tarnów</b></td><td>csm.tarnow.pl, kultura.tarnow.pl</td></tr>
-          <tr><td><b>Małopolska</b></td><td>malopolska.pl</td></tr>
-          <tr><td><b>Polska</b></td><td>zero.pl, forsal.pl, biznes.pap.pl</td></tr>
-          <tr><td><b>Globalne</b></td><td>politico.eu, rp.pl</td></tr>
-        </tbody>
-      </table>
-    </div>
-  `;
 }
