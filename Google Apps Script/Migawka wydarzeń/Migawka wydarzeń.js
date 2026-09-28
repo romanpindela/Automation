@@ -1,5 +1,5 @@
 /**
- * Główna funkcja uruchamiająca pobieranie, pojedyncze zapytania do AI dla każdego źródła, zapis i wysyłkę.
+ * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -44,22 +44,19 @@ function generujRaportWiadomosci() {
                         "- Okres przeszły (co się wydarzyło): od " + formatD(przed7Dniami) + " do " + dzisiajStr + "\n" +
                         "- Okres przyszły (co się wydarzy / planowane): od " + dzisiajStr + " do " + formatD(za7Dni);
 
-  // Tablice na wyniki z poszczególnych źródeł
   let wynikiLokalePrzyszle = [];
   let wynikiGlobalnePrzeszle = [];
   let wynikiGlobalnePrzyszle = [];
 
-  // 1. Przetwarzanie źródeł lokalnych (1 źródło = 1 zapytanie)[cite: 5]
+  // KROK 1 & 2: Zapytanie do AI dla każdego źródła z uwzględnieniem rygorystycznego profilu użytkownika
   SOURCES_LOKALNE.forEach(source => {
     let wynikiZrodla = zapytajDeepSeekDlaZrodla(source, kontekstCzasowy, "lokalne_przyszle");
     if (wynikiZrodla && wynikiZrodla.length > 0) {
       wynikiLokalePrzyszle = wynikiLokalePrzyszle.concat(wynikiZrodla);
     }
-    // Krótka pauza, aby nie przekroczyć limitów API (rate limits)
     Utilities.sleep(500);
   });
 
-  // 2. Przetwarzanie źródeł globalnych (1 źródło = zapytania o przeszłe i przyszłe)[cite: 5]
   SOURCES_GLOBALNE.forEach(source => {
     let wynikiPrzeszle = zapytajDeepSeekDlaZrodla(source, kontekstCzasowy, "globalne_przeszle");
     if (wynikiPrzeszle && wynikiPrzeszle.length > 0) {
@@ -74,27 +71,26 @@ function generujRaportWiadomosci() {
     Utilities.sleep(500);
   });
 
-  // Sortowanie sekcji lokalnej alfabetycznie po lokalizacji
-  wynikiLokalePrzyszle.sort((a, b) => (a[0] || "").localeCompare(b[0] || ""));
-  // Sortowanie sekcji globalnych po obszarze
-  wynikiGlobalnePrzeszle.sort((a, b) => (a[1] || "").localeCompare(b[1] || ""));
-  wynikiGlobalnePrzyszle.sort((a, b) => (a[1] || "").localeCompare(b[1] || ""));
+  // Grupuj i sortuj wyniki wg obszaru (indeks 0 lub 1), a następnie po dacie
+  sortujIGrupujWyniki(wynikiLokalePrzyszle, 0, 1);
+  sortujIGrupujWyniki(wynikiGlobalnePrzeszle, 1, 0);
+  sortujIGrupujWyniki(wynikiGlobalnePrzyszle, 1, 0);
 
-  // Nagłówki tabel
-  let naglowki1 = ["Lokalizacja", "Data / Dzień", "Tytuł / Temat", "Streszczenie merytoryczne", "Link"];
-  let naglowki2 = ["Data artykułu / wydarzenia", "Zasięg / Obszar", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Link"];
+  // Nowe nagłówki uwzględniające kolumnę Źródło
+  let naglowki1 = ["Obszar / Lokalizacja", "Data / Dzień", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
+  let naglowki2 = ["Data wydarzenia", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
 
-  // Cykliczny/bieżący zapis do arkuszy Google Sheets (3 zakładki)[cite: 5]
+  // KROK 3: Stworzenie raportu i zapis w arkuszach
   zapiszDoArkusza(ss, "1. Lokalne - Przyszłe", wynikiLokalePrzyszle, naglowki1);
   zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", wynikiGlobalnePrzeszle, naglowki2);
   zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", wynikiGlobalnePrzyszle, naglowki2);
 
-  // Wysyłka sformatowanego maila z kolorowymi tabelami i datą w tytule
+  // KROK 3: Wysyłka sformatowanego maila z ikonami i dopasowaną kolorystyką
   wyslijRaportEmail(wynikiLokalePrzyszle, wynikiGlobalnePrzeszle, wynikiGlobalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
 }
 
 /**
- * Wysyła pojedynczy adres URL do DeepSeek AI celem analizy konkretnego źródła.
+ * Wysyła pojedynczy adres URL do DeepSeek AI z dwustopniowym filtrem (profil użytkownika + ramy czasowe).
  */
 function zapytajDeepSeekDlaZrodla(source, kontekstCzasowy, typRaportu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
@@ -107,56 +103,68 @@ function zapytajDeepSeekDlaZrodla(source, kontekstCzasowy, typRaportu) {
   let instrukcjaSpecyficzna = "";
   let strukturaKolumn = "";
 
+  // Wyciągnięcie domeny do czytelnego oznaczenia źródła
+  let domenaZrodla = source.url.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/^www\./, "");
+
+  let filtrProfilu = 
+    "PROFIL UŻYTKOWNIKA (BEZWZGLĘDNY FILTR ODSEJNIKOWY):\n" +
+    "- Jesteś filtrem dla mężczyzny, ojca dwóch dziewczynek mieszkającego w Krakowie, interesującego się inwestycjami, gospodarką oraz polityką mającą realny wpływ na rynki i biznes, a także wartościową kulturą i wydarzeniami dla rodzin.\n" +
+    "- KATEGORYCZNIE ODRZUĆ: informacje o seniorach, stowarzyszeniach emerytów, kołach gospodyń, osoby niepełnosprawne, dramy, celebrytów, plotki, wypadki drogowe, incydenty policyjne, kryminalne, patologie, szpitale/sluzbę zdrowia (chyba że przełom makroekonomiczny), wieczory poetyckie dla dorosłych, spotkania lokalnych rad osiedli bez znaczenia.\n" +
+    "- ZOSTAW TYLKO: ciekawe wydarzenia kulturalne/sportowe/edukacyjne dla dzieci i rodzin w Krakowie i okolicy, inwestycje miejskie, kluczowe decyzje polityczno-gospodarcze, wskaźniki makroekonomiczne i biznes.";
+
   if (typRaportu === "lokalne_przyszle") {
     instrukcjaSpecyficzna = 
+      filtrProfilu + "\n\n" +
       "Analizujesz adres URL źródła: " + source.url + " (Grupa: " + source.group + ").\n" +
-      "KRYTERIUM CZASOWE I UKŁAD DLA SEKCJI 1 (Lokalne, Społeczne, Dzieci, Kultura - WYŁĄCZNIE PRZYSZŁE):\n" +
-      "- Wejdź wirtualnie na ten link, przeanalizuj jego zawartość i wybierz TYLKO te wydarzenia, które odbędą się w PRZYSZŁOŚCI w ciągu najbliższych 7 dni.\n" +
-      "- BEZWZGLĘDNIE ODRZUĆ wszystko, co już się odbyło lub ma datę w odległej przyszłości.\n" +
-      "- POGRUBIENIA: W kolumnie 'Tytuł / Temat' oraz 'Streszczenie merytoryczne' UŻYWAJ POGRUBIENIA (**tekst**) dla kluczowych fragmentów, nazw, dat lub pojęć!\n" +
-      "- UKŁAD KOLUMN (zwróć w tej dokładnie kolejności w tablicy tablic):\n" +
-      "  1. Lokalizacja (np. Kraków, Myślenice, Tarnów, Łagiewniki itp.)\n" +
-      "  2. Data / Dzień (dokładna data lub dzień tygodnia wydarzenia)\n" +
-      "  3. Tytuł / Temat (z pogrubionymi kluczowymi słowami)\n" +
-      "  4. Streszczenie merytoryczne (z pogrubionymi kluczowymi słowami)\n" +
-      "  5. Link (pełny URL do artykułu/wydarzenia)";
-    strukturaKolumn = "\"Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Link\"";
+      "SEKCJA 1 (Lokalne, Społeczne, Dzieci, Kultura - WYŁĄCZNIE PRZYSZŁE):\n" +
+      "- Wybierz TYLKO wydarzenia w PRZYSZŁOŚCI w ciągu najbliższych 7 dni.\n" +
+      "- POGRUBIENIA: Używaj pogrubienia (**tekst**) dla kluczowych nazw, dat, miejsc.\n" +
+      "- UKŁAD KOLUMN (zwróć w tablicy tablic):\n" +
+      "  1. Obszar / Lokalizacja (np. Kraków, Myślenice, Tarnów, Łagiewniki itp.)\n" +
+      "  2. Data / Dzień\n" +
+      "  3. Tytuł / Temat (z **pogrubieniami**)\n" +
+      "  4. Streszczenie merytoryczne (z **pogrubieniami**)\n" +
+      "  5. Źródło (wpisz dokładnie: " + domenaZrodla + ")\n" +
+      "  6. Link (pełny URL)";
+    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
   } else if (typRaportu === "globalne_przeszle") {
     instrukcjaSpecyficzna = 
+      filtrProfilu + "\n\n" +
       "Analizujesz adres URL źródła: " + source.url + " (Grupa: " + source.group + ").\n" +
-      "KRYTERIUM CZASOWE I UKŁAD DLA SEKCJI 2 (Świat, Polityka, Gospodarka - CO SIĘ WYDARZYŁO):\n" +
-      "- Wybierz TYLKO wiadomości z MINIONYCH 7 DNI.\n" +
-      "- WYCIĄGNIJ DOKŁADNĄ DATĘ: W pierwszej kolumnie podaj dokładną datę publikacji artykułu lub faktycznego wydarzenia (RRRR-MM-DD).\n" +
-      "- POGRUBIENIA: W kolumnie 'Tytuł / Temat' oraz 'Streszczenie merytoryczne' UŻYWAJ POGRUBIENIA (**tekst**) dla kluczowych fragmentów, nazwisk, kwot lub pojęć!\n" +
-      "- UKŁAD KOLUMN (zwróć w tej dokładnie kolejności w tablicy tablic):\n" +
-      "  1. Data artykułu / wydarzenia\n" +
-      "  2. Zasięg / Obszar (np. Polska, Europa, Świat)\n" +
+      "SEKCJA 2 (Świat, Polityka, Gospodarka - CO SIĘ WYDARZYŁO w minionych 7 dniach):\n" +
+      "- Wybierz TYLKO twarde fakty gospodarcze, biznesowe i istotną politykę z ostatnich 7 dni.\n" +
+      "- POGRUBIENIA: Używaj pogrubienia (**tekst**) dla kluczowych danych, kwot, nazwisk, pojęć.\n" +
+      "- UKŁAD KOLUMN (zwróć w tablicy tablic):\n" +
+      "  1. Data wydarzenia (RRRR-MM-DD)\n" +
+      "  2. Obszar / Zasięg (np. Polska, Europa, Świat)\n" +
       "  3. Kategoria\n" +
-      "  4. Tytuł / Temat (z pogrubionymi kluczowymi słowami)\n" +
-      "  5. Streszczenie merytoryczne (z pogrubionymi kluczowymi słowami)\n" +
-      "  6. Link (pełny URL)";
-    strukturaKolumn = "\"Data artykułu / wydarzenia\", \"Zasięg / Obszar\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Link\"";
+      "  4. Tytuł / Temat (z **pogrubieniami**)\n" +
+      "  5. Streszczenie merytoryczne (z **pogrubieniami**)\n" +
+      "  6. Źródło (wpisz dokładnie: " + domenaZrodla + ")\n" +
+      "  7. Link (pełny URL)";
+    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
   } else if (typRaportu === "globalne_przyszle") {
     instrukcjaSpecyficzna = 
+      filtrProfilu + "\n\n" +
       "Analizujesz adres URL źródła: " + source.url + " (Grupa: " + source.group + ").\n" +
-      "KRYTERIUM CZASOWE I UKŁAD DLA SEKCJI 3 (Świat, Polityka, Gospodarka - CO SIĘ WYDARZY):\n" +
-      "- Wybierz TYLKO zapowiedzi na NAJBLIŻSZE 7 DNI.\n" +
-      "- WYCIĄGNIJ DOKŁADNĄ DATĘ: W pierwszej kolumnie podaj zaplanowaną datę tego wydarzenia / publikacji (RRRR-MM-DD).\n" +
-      "- POGRUBIENIA: W kolumnie 'Tytuł / Temat' oraz 'Streszczenie merytoryczne' UŻYWAJ POGRUBIENIA (**tekst**) dla kluczowych fragmentów i dat!\n" +
-      "- UKŁAD KOLUMN (zwróć w tej dokładnie kolejności w tablicy tablic):\n" +
-      "  1. Data artykułu / wydarzenia\n" +
-      "  2. Zasięg / Obszar (np. Polska, Europa, Świat)\n" +
+      "SEKCJA 3 (Świat, Polityka, Gospodarka - CO SIĘ WYDARZY w najbliższych 7 dniach):\n" +
+      "- Wybierz zapowiedzi, kalendarz makroekonomiczny, szczyty i decyzje na najbliższe 7 dni.\n" +
+      "- POGRUBIENIA: Używaj pogrubienia (**tekst**) dla kluczowych terminów i wydarzeń.\n" +
+      "- UKŁAD KOLUMN (zwróć w tablicy tablic):\n" +
+      "  1. Data wydarzenia (RRRR-MM-DD)\n" +
+      "  2. Obszar / Zasięg (np. Polska, Europa, Świat)\n" +
       "  3. Kategoria\n" +
-      "  4. Tytuł / Temat (z pogrubionymi kluczowymi słowami)\n" +
-      "  5. Streszczenie merytoryczne (z pogrubionymi kluczowymi słowami)\n" +
-      "  6. Link (pełny URL)";
-    strukturaKolumn = "\"Data artykułu / wydarzenia\", \"Zasięg / Obszar\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Link\"";
+      "  4. Tytuł / Temat (z **pogrubieniami**)\n" +
+      "  5. Streszczenie merytoryczne (z **pogrubieniami**)\n" +
+      "  6. Źródło (wpisz dokładnie: " + domenaZrodla + ")\n" +
+      "  7. Link (pełny URL)";
+    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
   }
 
-  let systemPrompt = "Jesteś bezwzględnym analitykiem mediów i fact-checkerem. Pobierasz dane bezpośrednio ze wskazanego linku źródłowego.\n\n" +
+  let systemPrompt = "Jesteś bezwzględnym analitykiem mediów. Przeprowadzasz selekcję dwuetapową (filtr odrzucający szum + analiza czasowa).\n\n" +
                      kontekstCzasowy + "\n\n" +
                      instrukcjaSpecyficzna + "\n\n" +
-                     "Zwróć wynik ŚCISLE w formacie JSON (bez żadnego formatowania markdown, sam czysty tekst):\n" +
+                     "Zwróć wynik ŚCISLE w formacie JSON (sam czysty tekst, bez markdown):\n" +
                      "{\n  \"dane\": [\n    [" + strukturaKolumn + "]\n  ]\n}";
 
   const payload = {
@@ -201,6 +209,23 @@ function zapytajDeepSeekDlaZrodla(source, kontekstCzasowy, typRaportu) {
 }
 
 /**
+ * Pomocnicza funkcja grupująca wg obszaru i sortująca po dacie.
+ */
+function sortujIGrupujWyniki(dane, indeksObszaru, indeksDaty) {
+  if (!dane || dane.length === 0) return;
+  dane.sort((a, b) => {
+    let obszarA = String(a[indeksObszaru] || "");
+    let obszarB = String(b[indeksObszaru] || "");
+    if (obszarA !== obszarB) {
+      return obszarA.localeCompare(obszarB);
+    }
+    let dataA = String(a[indeksDaty] || "");
+    let dataB = String(b[indeksDaty] || "");
+    return dataA.localeCompare(dataB);
+  });
+}
+
+/**
  * Pomocnicza funkcja do czyszczenia i nadpisywania arkusza nowymi danymi.
  */
 function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
@@ -224,39 +249,39 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
 }
 
 /**
- * Funkcja formatująca i wysyłająca 3-częściowy raport na e-mail z kolorowymi tabelami i datą w tytule.
+ * Funkcja formatująca i wysyłająca 3-częściowy raport na e-mail z ikonami i wyrazistą czytelnością.
  */
 function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
   let emailAdres = Session.getActiveUser().getEmail();
   let temat = "📰 Migawka wydarzeń (" + dzisiajStr + ")";
 
-  let htmlBody = "<h2 style=\"color: #2c3e50;\">Automatyczny Przegląd Wiadomości i Wydarzeń (" + dzisiajStr + ")</h2>" +
-                 "<p>Poniżej znajduje się rygorystycznie przefiltrowany raport podzielony na trzy kluczowe sekcje czasowe.</p>" +
-                 "<h3 style=\"color: #16a085; border-bottom: 2px solid #16a085; padding-bottom: 5px;\">1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące wydarzenia)</h3>";
+  let htmlBody = "<h2 style=\"color: #2c3e50;\">🎯 Osobisty Przegląd Wiadomości i Wydarzeń (" + dzisiajStr + ")</h2>" +
+                 "<p>Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>" +
+                 "<h3 style=\"color: #16a085; border-bottom: 2px solid #16a085; padding-bottom: 5px;\">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące wydarzenia)</h3>";
 
   if (!lokalnePrzyszle || lokalnePrzyszle.length === 0) {
     htmlBody += "<p><em>Brak nadchodzących wydarzeń spełniających kryteria w najbliższych dniach.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(lokalnePrzyszle, naglowki1, "#16a085", "#e8f8f5");
+    htmlBody += generujTabeleHtml(lokalnePrzyszle, naglowki1, "#16a085", "#e8f8f5", 0);
   }
 
-  htmlBody += "<h3 style=\"color: #2980b9; border-bottom: 2px solid #2980b9; padding-bottom: 5px; margin-top: 30px;\">2. Świat, Polityka, Gospodarka – Co się wydarzyło (Minione 7 dni)</h3>";
+  htmlBody += "<h3 style=\"color: #2980b9; border-bottom: 2px solid #2980b9; padding-bottom: 5px; margin-top: 30px;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło (Minione 7 dni)</h3>";
 
   if (!globalnePrzeszle || globalnePrzeszle.length === 0) {
     htmlBody += "<p><em>Brak istotnych wydarzeń w tym okresie.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(globalnePrzeszle, naglowki2, "#2980b9", "#ebf5fb");
+    htmlBody += generujTabeleHtml(globalnePrzeszle, naglowki2, "#2980b9", "#ebf5fb", 1);
   }
 
-  htmlBody += "<h3 style=\"color: #d35400; border-bottom: 2px solid #d35400; padding-bottom: 5px; margin-top: 30px;\">3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>";
+  htmlBody += "<h3 style=\"color: #d35400; border-bottom: 2px solid #d35400; padding-bottom: 5px; margin-top: 30px;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>";
 
   if (!globalnePrzyszle || globalnePrzyszle.length === 0) {
     htmlBody += "<p><em>Brak zapowiadanych wydarzeń w tym okresie.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(globalnePrzyszle, naglowki2, "#d35400", "#fef5e7");
+    htmlBody += generujTabeleHtml(globalnePrzyszle, naglowki2, "#d35400", "#fef5e7", 1);
   }
 
-  htmlBody += "<br><hr><p style=\"font-size: 11px; color: #7f8c8d;\">Raport wygenerowany automatycznie przez Google Apps Script i DeepSeek AI.</p>";
+  htmlBody += "<br><hr><p style=\"font-size: 11px; color: #7f8c8d;\">Automatyczny agregator treści AI (RSS/Web + DeepSeek LLM).</p>";
 
   MailApp.sendEmail({
     to: emailAdres,
@@ -266,10 +291,9 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
 }
 
 /**
- * Pomocnicza funkcja zamieniająca tablicę danych na ładną, kolorową tabelę HTML.
- * Konwertuje również markdownowe pogrubienia (**tekst**) na tagi HTML (<b>tekst</b>).
+ * Pomocnicza funkcja zamieniająca tablicę danych na kolorową, przejrzystą tabelę HTML z grupowaniem po obszarze.
  */
-function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla) {
+function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
   let html = "<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px; margin-top: 10px;\">";
   
   html += "<tr style=\"background-color: " + kolorNaglowka + "; color: white;\">";
@@ -278,21 +302,38 @@ function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla) {
   });
   html += "</tr>";
 
+  let ostatniaGrupa = "";
   let i = 0;
+  
   dane.forEach(wiersz => {
+    let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
+    
+    // Wiersz wyróżniający dla nowego obszaru (grupowanie)
+    if (aktualnaGrupa !== ostatniaGrupa) {
+      html += "<tr style=\"background-color: #d6dbdf;\">";
+      html += "<td colspan=\"" + nagłówki.length + "\" style=\"border: 1px solid #bdc3c7; padding: 6px 8px; font-weight: bold; color: #2c3e50;\">📌 Obszar / Region: " + aktualnaGrupa + "</td>";
+      html += "</tr>";
+      ostatniaGrupa = aktualnaGrupa;
+      i = 0; // reset paska zebry dla nowej grupy
+    }
+
     let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
     html += "<tr style=\"" + stylTla + "\">";
+    
     wiersz.forEach((komorka, index) => {
       let zawartosc = String(komorka || "");
       
-      // Zamiana markdown **pogrubienie** na HTML <b>pogrubienie</b> dla czytelności w mailu
+      // Konwersja pogrubień markdown na tagi HTML
       zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
 
+      // Obsługa kolumny linku (ostatnia kolumna)
       if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
         zawartosc = "<a href=\"" + zawartosc + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + "; font-weight: bold;\">Otwórz link</a>";
       }
+      
       html += "<td style=\"border: 1px solid #bdc3c7; padding: 8px;\">" + zawartosc + "</td>";
     });
+    
     html += "</tr>";
     i++;
   });
