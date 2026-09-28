@@ -1,15 +1,35 @@
 /**
  * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
- * Wersja: lokalne nadchodzące + trwające + rozszerzone dane wydarzeń
+ * Wersja: rozszerzona o godzinę, grupę wiekową, warunki wstępu i połączone źródło+link.
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Wczytanie źródeł i promptu z folderu: Automation/Migawka Wydarzeń na Google Dysku
-  const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
-  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
-  let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
+  const SOURCES_LOKALNE_DOMYSLNE = [
+    { url: "https://przedszkole140.blizej.info/", group: "Szkoły / Przedszkola" },
+    { url: "https://sokolska.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
+    { url: "https://borek.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
+    { url: "https://iskierka.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
+    { url: "https://smcegielniana.pl/kategoria/aktualnosci", group: "Łagiewniki" },
+    { url: "https://dzielnica9.krakow.pl/", group: "Łagiewniki" },
+    { url: "https://wydarzenia.miasto-info.pl/", group: "Myślenice" },
+    { url: "https://csm.tarnow.pl/wydarzenia/dla-dzieci", group: "Tarnów" },
+    { url: "https://kultura.tarnow.pl/wydarzenia/miesiac/", group: "Tarnów" },
+    { url: "https://www.malopolska.pl/", group: "Małopolska" }
+  ];
 
+  const SOURCES_GLOBALNE_DOMYSLNE = [
+    { url: "https://zero.pl/kategoria/kraj", group: "Polska" },
+    { url: "https://forsal.pl/", group: "Polska/Gospodarka" },
+    { url: "https://www.politico.eu", group: "Europa/Polityka" },
+    { url: "https://biznes.pap.pl", group: "Polska/Gospodarka" },
+    { url: "https://www.rp.pl/wydarzenia/swiat", group: "Świat" }
+  ];
+
+  const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || SOURCES_LOKALNE_DOMYSLNE;
+  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || SOURCES_GLOBALNE_DOMYSLNE;
+
+  let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   if (!filtrProfilu) {
     filtrProfilu = "Brak zewnętrznego promptu - domyślny tryb analityka.";
   }
@@ -143,57 +163,38 @@ function normalizujWynikLokalny(row) {
   if (!Array.isArray(row) || row.length === 0) return null;
 
   let wynik = row.map(item => String(item || "").trim());
+
   while (wynik.length < 8) wynik.push("");
 
-  if (wynik.length > 8) {
-    // do not exceed expected length, collapse link/source if there are extra fields
-    let sourceLink = sformatujZrodloILink(wynik[7], wynik[8]);
-    wynik = wynik.slice(0, 7).concat([sourceLink]);
-  }
-
-  // Ensure the last field always includes the source and link if available.
-  if (wynik.length === 8 && wynik[7] && !wynik[7].includes("http")) {
-    let sourceText = wynik[7];
-    let urlText = "";
-    if (row.length > 8 && /^https?:\/\//i.test(String(row[8] || ""))) {
-      urlText = row[8];
-    }
-    wynik[7] = sformatujZrodloILink(sourceText, urlText);
-  }
-
-  if (wynik.length === 7) {
+  if (wynik.length === 8) {
     wynik.push("");
   }
 
-  // Data i godzina dla lokalnych: jeśli brak, ustaw "Trwa / data niepewna"
   if (!wynik[1]) wynik[1] = "Trwa / data niepewna";
   if (!wynik[2]) wynik[2] = "—";
   if (!wynik[5]) wynik[5] = "Wszyscy";
   if (!wynik[6]) wynik[6] = "Brak informacji";
 
-  return wynik;
+  // Jeżeli dane przychodzą w starej strukturze 6 pól, uzupełnij brakujące elementy.
+  if (wynik.length === 9 && !wynik[7]) {
+    wynik[7] = "Brak informacji";
+  }
+
+  return wynik.slice(0, 8).concat([wynik[8] || ""]);
 }
 
 function normalizujWynikGlobalny(row) {
   if (!Array.isArray(row) || row.length === 0) return null;
 
   let wynik = row.map(item => String(item || "").trim());
+
   while (wynik.length < 9) wynik.push("");
-
-  if (wynik.length > 9) {
-    let sourceLink = sformatujZrodloILink(wynik[8], wynik[9]);
-    wynik = wynik.slice(0, 8).concat([sourceLink]);
-  }
-
-  if (wynik.length === 9) {
-    wynik.push("");
-  }
 
   if (!wynik[1]) wynik[1] = "—";
   if (!wynik[6]) wynik[6] = "Wszyscy";
   if (!wynik[7]) wynik[7] = "Brak informacji";
 
-  return wynik;
+  return wynik.slice(0, 9);
 }
 
 function sformatujZrodloILink(zrodlo, link) {
@@ -256,11 +257,9 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   let instrukcjaRozszerzona = "";
 
   if (typRaportu === "lokalne_przyszle") {
-    instrukcjaCzasowa =
-      "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
+    instrukcjaCzasowa = "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
       "- Wybierz WYŁĄCZNIE nadchodzące wydarzenia w najbliższych 7 dniach.\n" +
-      "- Ignoruj wydarzenia przeszłe i stałe zajęcia dla dorosłych bez konkretnej daty.\n" +
-      "- Jeżeli wydarzenie trwa już teraz, ale ma zapowiedziany termin w najbliższych dniach, traktuj je jako 'przyszłe' tylko wtedy, gdy jest to wyraźnie zapowiedziane na ten okres.";
+      "- Ignoruj wydarzenia przeszłe i stałe zajęcia dla dorosłych bez konkretnej daty.";
 
     strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Godzina\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
 
@@ -271,16 +270,14 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
 
   } else if (typRaportu === "lokalne_trwajace") {
-    instrukcjaCzasowa =
-      "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
+    instrukcjaCzasowa = "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
       "- Wybierz WYŁĄCZNIE wydarzenia, które trwają teraz, mają charakter ciągły, lub mają aktywny okres obejmujący dzisiaj i najbliższe dni.\n" +
-      "- Nie wybieraj wydarzeń wyłącznie historycznych ani stałych kursów dla dorosłych.\n" +
-      "- Jeśli nie ma konkretnej daty, wpisz 'Trwa / data niepewna' w polu Data / Dzień.";
+      "- Nie wybieraj wydarzeń wyłącznie historycznych ani stałych kursów dla dorosłych.";
 
     strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Godzina\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
 
     instrukcjaRozszerzona = "INSTRUKCJA POLI DODATKOWYCH:\n" +
-      "1. Godzina: jeśli pojawia się w opisie ciągłego wydarzenia, wpisz ją. Jeśli nie ma konkretu, wpisz '—'.\n" +
+      "1. Godzina: jeśli pojawia się w opisie ciągłego wydarzenia, wpisz ją; jeśli nie ma konkretu, wpisz '—'.\n" +
       "2. Dla kogo (wiek): dla wydarzeń rodzinnych użyj 'Dzieci 4-7 lat', 'Całe rodziny', 'Wszyscy'; dla wydarzeń ogólnych 'Wszyscy'.\n" +
       "3. Warunki wstępu: wpisz 'Wstęp wolny', 'Wstęp płatny', 'Wymagana rejestracja', 'Publiczne', lub 'Brak informacji'.\n" +
       "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
@@ -291,7 +288,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     strukturaKolumn = "\"Data wydarzenia\", \"Godzina\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
     instrukcjaRozszerzona = "INSTRUKCJA POLI DODATKOWYCH:\n" +
       "1. Godzina: jeśli jest znana, wpisz ją; jeśli nie, wpisz '—'.\n" +
-      "2. Dla kogo (wiek): 'Profesionałowie', 'Inwestorzy', 'Ogół społeczeństwa', 'Wszyscy', lub '—'.\n" +
+      "2. Dla kogo (wiek): 'Profesjonaliści', 'Inwestorzy', 'Ogół społeczeństwa', 'Wszyscy', lub '—'.\n" +
       "3. Warunki wstępu: 'Publiczne', 'Transmisja online', 'Artykuł / Wiadomość', lub 'Brak informacji'.\n" +
       "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
   }
