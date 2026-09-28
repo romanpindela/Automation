@@ -38,7 +38,7 @@ function generujRaportWiadomosci() {
 
   let kontekstCzasowy = "BEZWZGLĘDNE RAMY KALENDARZOWE (Dzisiejsza data to: " + dzisiajStr + "):\n" +
                         "- Okres przeszły: od " + formatD(przed7Dniami) + " do " + dzisiajStr + "\n" +
-                        "- Okres przyszły: od " + dzisiajStr + " do " + formatD(za7Dni);
+                        "- Okres przyszły (NADCHODZĄCY TYDZIEŃ): od " + dzisiajStr + " do " + formatD(za7Dni);
 
   let unikalneUrle = [...new Set([...SOURCES_LOKALNE.map(s => s.url), ...SOURCES_GLOBALNE.map(s => s.url)])];
   
@@ -75,7 +75,14 @@ function generujRaportWiadomosci() {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
       let wynikiZrodla = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle");
-      if (wynikiZrodla) wynikiLokalePrzyszle = wynikiLokalePrzyszle.concat(wynikiZrodla);
+      if (wynikiZrodla) {
+        // Filtr programistyczny: odrzucamy absolutnie wszystko, co zawiera słowo ODRZUCONE
+        let przefiltrowane = wynikiZrodla.filter(row => {
+          let calyWierszStr = row.join(" ").toUpperCase();
+          return !calyWierszStr.includes("ODRZUCONE");
+        });
+        wynikiLokalePrzyszle = wynikiLokalePrzyszle.concat(przefiltrowane);
+      }
     }
   });
 
@@ -83,10 +90,16 @@ function generujRaportWiadomosci() {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
       let wynikiPrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle");
-      if (wynikiPrzeszle) wynikiGlobalnePrzeszle = wynikiGlobalnePrzeszle.concat(wynikiPrzeszle);
+      if (wynikiPrzeszle) {
+        let przefiltrowanePrzeszle = wynikiPrzeszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
+        wynikiGlobalnePrzeszle = wynikiGlobalnePrzeszle.concat(przefiltrowanePrzeszle);
+      }
 
       let wynikiPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle");
-      if (wynikiPrzyszle) wynikiGlobalnePrzyszle = wynikiGlobalnePrzyszle.concat(wynikiPrzyszle);
+      if (wynikiPrzyszle) {
+        let przefiltrowanePrzyszle = wynikiPrzyszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
+        wynikiGlobalnePrzyszle = wynikiGlobalnePrzyszle.concat(przefiltrowanePrzyszle);
+      }
     }
   });
 
@@ -113,22 +126,31 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   let filtrProfilu = 
     "PROFIL UŻYTKOWNIKA I INSTRUKCJA ANALIZY (BEZWZGLĘDNY FILTR ODSEJNIKOWY):\n" +
     "- Jesteś filtrem i analitykiem dla mężczyzny, ojca dwóch dziewczynek mieszkającego w Krakowie, interesującego się inwestycjami, gospodarką, polityką rynkową oraz wartościowym czasem spędzanym z rodziną.\n" +
-    "- KATEGORYCZNIE ODRZUĆ: informacje o seniorach, stowarzyszeniach emerytów, kołach gospodyń, osoby niepełnosprawne, dramy, celebrytów, plotki, wypadki drogowe, incydenty policyjne, kryminalne, patologie, służbę zdrowia (chyba że przełom makroekonomiczny), wieczory poetyckie dla dorosłych, spotkania lokalnych rad osiedli bez znaczenia.\n" +
-    "- ZOSTAW TYLKO: ciekawe wydarzenia kulturalne/sportowe/edukacyjne dla dzieci i rodzin w Krakowie i okolicy, inwestycje miejskie, kluczowe decyzje polityczno-gospodarcze, wskaźniki makroekonomiczne i biznes.\n\n" +
-    "WYMAGANA STRUKTURA RAPORTU 1 (SZCZEGÓŁOWA ANALIZA WYDARZENIA DZIECIĘCEGO/RODZINNEGO):\n" +
-    "Dla każdego zakwalifikowanego wydarzenia przygotuj pogłębioną analizę według kryteriów: nazwa/lokalizacja, profil atrakcji, wartość dla dzieci, jakość spędzania czasu z rodzicem, logistyka/komfort oraz rekomendacja (1-5).";
+    "- KATEGORYCZNIE ODRZUĆ I NIE ZWRACAJ W WYNIKU: informacji o seniorach, stowarzyszeniach emerytów, kołach gospodyń, osoby niepełnosprawne, dramy, celebrytów, plotki, wypadki drogowe, incydenty policyjne, kryminalne, patologie, klęski żywiołowe, wypadki drogowe, służbę zdrowia (chyba że przełom makroekonomiczny), wieczory poetyckie dla dorosłych, spotkania lokalnych rad osiedli bez znaczenia, a także oferty zajęć stałych dla dorosłych (np. ceramika dla dorosłych, kluby dyskusyjne dla dorosłych).\n" +
+    "- ZWROTNY FORMAT: Zwracaj WYŁĄCZNIE pozycje zakwalifikowane jako trafione lub potencjalnie trafione. POD ŻADNYM POZOREM nie umieszczaj w JSON-ie rekordów z etykietą ODRZUCONE.";
 
-  let strukturaKolumn = (typRaportu === "lokalne_przyszle") 
-    ? "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\""
-    : "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
+  let instrukcjaCzasowa = "";
+  let strukturaKolumn = "";
 
-  let systemPrompt = "Jesteś analitykiem. " + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"" + trescZrodla + "\"\"\"\nZwróć JSON:\n{\"dane\": [[" + strukturaKolumn + "]]}";
+  if (typRaportu === "lokalne_przyszle") {
+    instrukcjaCzasowa = 
+      "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
+      "- Wybierz WYŁĄCZNIE wydarzenia w PRZYSZŁOŚCI w okresie nadchodzących 7 dni.\n" +
+      "- Całkowicie pomijaj wydarzenia archiwalne (przeszłe) oraz kursy stałe dla dorosłych bez konkretnych dat w nadchodzącym tygodniu.";
+    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
+  } else {
+    let typOpis = (typRaportu === "globalne_przeszle") ? "co się wydarzyło w minionych 7 dniach" : "co się wydarzy w najbliższych 7 dniach";
+    instrukcjaCzasowa = "Analizuj pod kątem kategorii: " + typOpis + ".";
+    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
+  }
+
+  let systemPrompt = "Jesteś analitykiem. \n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"" + trescZrodla + "\"\"\"\nZwróć JSON:\n{\"dane\": [[" + strukturaKolumn + "]]}";
 
   const payload = {
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij pasujące pozycje w formacie JSON." }
+      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON." }
     ],
     response_format: { type: "json_object" },
     temperature: 0.0
@@ -181,13 +203,41 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
 }
 
 /**
- * Wysyła ładny raport e-mail oraz załącza PDF w układzie poziomym z nowymi stronami dla każdej sekcji.
+ * Wysyła raport e-mail oraz załącza PDF z poprawionym nagłówkiem i tabelą źródeł na końcu.
  */
 function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
   let emailAdres = Session.getActiveUser().getEmail();
-  let temat = "📰 Migawka wydarzeń (" + dzisiajStr + ")";
+  let temat = "📰 Migawka Wydarzeń (" + dzisiajStr + ")";
 
-  let htmlBody = "<h2 style=\"color: #1e293b; font-family: Arial, sans-serif;\">🎯 Osobisty Przegląd Wiadomości i Wydarzeń (" + dzisiajStr + ")</h2>" +
+  function generujTabeluZrodelHtml(isPdf = false) {
+    let tdStyle = isPdf ? "padding: 3px 6px; font-size: 9px; color: #64748b; border-bottom: 1px solid #f1f5f9;" : "padding: 4px 8px; font-size: 10px; color: #64748b; border-bottom: 1px solid #f1f5f9;";
+    let thStyle = isPdf ? "padding: 4px 6px; font-size: 9px; color: #475569; background-color: #f8fafc; text-align: left; border-bottom: 1px solid #e2e8f0;" : "padding: 5px 8px; font-size: 10px; color: #475569; background-color: #f8fafc; text-align: left; border-bottom: 1px solid #e2e8f0;";
+
+    return `
+      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+        <h4 style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Monitorowane źródła informacji</h4>
+        <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
+          <thead>
+            <tr>
+              <th style="${thStyle}">Kategoria / Region</th>
+              <th style="${thStyle}">Adres URL źródła</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="${tdStyle}"><b>Kraków i okolice (Przedszkola / Szkoły)</b></td><td style="${tdStyle}">przedszkole140.blizej.info</td></tr>
+            <tr><td style="${tdStyle}"><b>Kraków (CK Podgórza / Sokolska / Borek / Iskierka)</b></td><td style="${tdStyle}">sokolska.ckpodgorza.pl, borek.ckpodgorza.pl, iskierka.ckpodgorza.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Kraków (Łagiewniki / Cegielniana / Dzielnica IX)</b></td><td style="${tdStyle}">smcegielniana.pl, dzielnica9.krakow.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Myślenice & Tarnów</b></td><td style="${tdStyle}">wydarzenia.miasto-info.pl, csm.tarnow.pl, kultura.tarnow.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Małopolska (Regionalne)</b></td><td style="${tdStyle}">malopolska.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Informacje ogólnopolskie (Polska)</b></td><td style="${tdStyle}">zero.pl, forsal.pl, biznes.pap.pl</td></tr>
+            <tr><td style="${tdStyle}"><b>Globalne / Świat / Europa</b></td><td style="${tdStyle}">reuters.com, politico.eu, rp.pl/wydarzenia/swiat</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  let htmlBody = "<h2 style=\"color: #1e293b; font-family: Arial, sans-serif;\">🎯 Migawka Wydarzeń (" + dzisiajStr + ")</h2>" +
                  "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 13px;\">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>";
 
   // Sekcja 1: Lokalne
@@ -214,13 +264,13 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
     htmlBody += generujTabeleHtml(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1);
   }
 
+  htmlBody += generujTabeluZrodelHtml(false);
   htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 11px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści AI (RSS/Web + DeepSeek LLM).</p>";
 
-  // --- GENEROWANIE PDF Z UKŁADEM POZIOMYM I NOWYMI STRONAMI DLA KAŻDEJ SEKCJI ---
   let pdfBlob = null;
   try {
     let pdfZawartosc = `
-      <h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Osobisty Przegląd Wiadomości i Wydarzeń (${dzisiajStr})</h2>
+      <h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
       <p style="font-family: Arial, sans-serif; color: #475569; font-size: 12px;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
       
       <!-- SEKCJA 1 -->
@@ -236,6 +286,10 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
       <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
       <h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy (Zapowiedzi na 7 dni)</h3>
       ${generujTabeleDoPdf(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1)}
+
+      <!-- Tabela źródeł na ostatniej stronie PDF -->
+      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
+      ${generujTabeluZrodelHtml(true)}
     `;
 
     let completeHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
