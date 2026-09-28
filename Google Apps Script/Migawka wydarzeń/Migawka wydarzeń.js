@@ -1,62 +1,35 @@
 /**
  * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
- * Wersja: rozszerzona o godzinę, grupę wiekową, warunki wstępu i połączone źródło+link.
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  const SOURCES_LOKALNE_DOMYSLNE = [
-    { url: "https://przedszkole140.blizej.info/", group: "Szkoły / Przedszkola" },
-    { url: "https://sokolska.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://borek.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://iskierka.ckpodgorza.pl/", group: "Szkoły / CK Podgórza" },
-    { url: "https://smcegielniana.pl/kategoria/aktualnosci", group: "Łagiewniki" },
-    { url: "https://dzielnica9.krakow.pl/", group: "Łagiewniki" },
-    { url: "https://csm.tarnow.pl/wydarzenia/dla-dzieci", group: "Tarnów" },
-    { url: "https://kultura.tarnow.pl/wydarzenia/miesiac/", group: "Tarnów" },
-    { url: "https://www.malopolska.pl/", group: "Małopolska" }
-  ];
-
-  const SOURCES_GLOBALNE_DOMYSLNE = [
-    { url: "https://zero.pl/kategoria/kraj", group: "Polska" },
-    { url: "https://forsal.pl/", group: "Polska/Gospodarka" },
-    { url: "https://www.politico.eu", group: "Europa/Polityka" },
-    { url: "https://biznes.pap.pl", group: "Polska/Gospodarka" },
-    { url: "https://www.rp.pl/wydarzenia/swiat", group: "Świat" }
-  ];
-
-  const SOURCES_LOKALNE = normalizujZrodla(
-    wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json"),
-    SOURCES_LOKALNE_DOMYSLNE
-  );
-
-  const SOURCES_GLOBALNE = normalizujZrodla(
-    wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json"),
-    SOURCES_GLOBALNE_DOMYSLNE
-  );
-
+  
+  // Wczytanie źródeł i promptu z folderu: Automation/Migawka Wydarzeń na Google Dysku
+  const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
+  const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
+  
   if (!filtrProfilu) {
     filtrProfilu = "Brak zewnętrznego promptu - domyślny tryb analityka.";
   }
 
   let dzisiaj = new Date();
   let dzisiajStr = dzisiaj.toISOString().split('T')[0];
-
+  
   let za7Dni = new Date(dzisiaj);
   za7Dni.setDate(dzisiaj.getDate() + 7);
-
+  
   let przed7Dniami = new Date(dzisiaj);
   przed7Dniami.setDate(dzisiaj.getDate() - 7);
 
   let formatD = (d) => d.toISOString().split('T')[0];
 
   let kontekstCzasowy = "BEZWZGLĘDNE RAMY KALENDARZOWE (Dzisiejsza data to: " + dzisiajStr + "):\n" +
-      "- Okres przeszły: od " + formatD(przed7Dniami) + " do " + dzisiajStr + "\n" +
-      "- Okres przyszły (NADCHODZĄCY TYDZIEŃ): od " + dzisiajStr + " do " + formatD(za7Dni);
+                        "- Okres przeszły: od " + formatD(przed7Dniami) + " do " + dzisiajStr + "\n" +
+                        "- Okres przyszły (NADCHODZĄCY TYDZIEŃ): od " + dzisiajStr + " do " + formatD(za7Dni);
 
   let unikalneUrle = [...new Set([...SOURCES_LOKALNE.map(s => s.url), ...SOURCES_GLOBALNE.map(s => s.url)])];
-
+  
   let requesty = unikalneUrle.map(url => ({
     url: url,
     muteHttpExceptions: true,
@@ -73,9 +46,9 @@ function generujRaportWiadomosci() {
       let url = unikalneUrle[index];
       if (resp.getResponseCode() === 200) {
         let czystyTekst = wyczyscHtmlDoTekstu(resp.getContentText());
-        tresciStron[url] = czystyTekst.length > 5000 ? czystyTekst.substring(0, 5000) : czystyTekst;
+        tresciStron[url] = czystyTekst.length > 3500 ? czystyTekst.substring(0, 3500) : czystyTekst;
       } else {
-        tresciStron[url] = "";
+        tresciStron[url] = ""; 
       }
     });
   } catch (e) {
@@ -83,27 +56,19 @@ function generujRaportWiadomosci() {
   }
 
   let wynikiLokalePrzyszle = [];
-  let wynikiLokaleTrwajace = [];
   let wynikiGlobalnePrzeszle = [];
   let wynikiGlobalnePrzyszle = [];
 
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let wynikiPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
-      if (wynikiPrzyszle) {
-        let przefiltrowane = wynikiPrzyszle
-          .map(normalizujWynikLokalny)
-          .filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE"));
+      let wynikiZrodla = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
+      if (wynikiZrodla) {
+        let przefiltrowane = wynikiZrodla.filter(row => {
+          let calyWierszStr = row.join(" ").toUpperCase();
+          return !calyWierszStr.includes("ODRZUCONE");
+        });
         wynikiLokalePrzyszle = wynikiLokalePrzyszle.concat(przefiltrowane);
-      }
-
-      let wynikiTrwajace = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_trwajace", filtrProfilu);
-      if (wynikiTrwajace) {
-        let przefiltrowaneTrwajace = wynikiTrwajace
-          .map(normalizujWynikLokalny)
-          .filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE"));
-        wynikiLokaleTrwajace = wynikiLokaleTrwajace.concat(przefiltrowaneTrwajace);
       }
     }
   });
@@ -113,127 +78,30 @@ function generujRaportWiadomosci() {
     if (tresc.length > 0) {
       let wynikiPrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
       if (wynikiPrzeszle) {
-        let przefiltrowanePrzeszle = wynikiPrzeszle
-          .map(normalizujWynikGlobalny)
-          .filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE"));
+        let przefiltrowanePrzeszle = wynikiPrzeszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
         wynikiGlobalnePrzeszle = wynikiGlobalnePrzeszle.concat(przefiltrowanePrzeszle);
       }
 
       let wynikiPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
       if (wynikiPrzyszle) {
-        let przefiltrowanePrzyszle = wynikiPrzyszle
-          .map(normalizujWynikGlobalny)
-          .filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE"));
+        let przefiltrowanePrzyszle = wynikiPrzyszle.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE"));
         wynikiGlobalnePrzyszle = wynikiGlobalnePrzyszle.concat(przefiltrowanePrzyszle);
       }
     }
   });
 
-  let wynikiLokaleWszystkie = [...wynikiLokalePrzyszle, ...wynikiLokaleTrwajace];
-
-  sortujIGrupujWyniki(wynikiLokaleWszystkie, 0, 1);
+  sortujIGrupujWyniki(wynikiLokalePrzyszle, 0, 1);
   sortujIGrupujWyniki(wynikiGlobalnePrzeszle, 1, 0);
   sortujIGrupujWyniki(wynikiGlobalnePrzyszle, 1, 0);
 
-  let naglowki1 = [
-    "Obszar / Lokalizacja",
-    "Data / Dzień",
-    "Godzina",
-    "Tytuł / Temat",
-    "Streszczenie merytoryczne",
-    "Dla kogo (wiek)",
-    "Warunki wstępu",
-    "Źródło / Link"
-  ];
+  let naglowki1 = ["Obszar / Lokalizacja", "Data / Dzień", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
+  let naglowki2 = ["Data wydarzenia", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Źródło", "Link"];
 
-  let naglowki2 = [
-    "Data wydarzenia",
-    "Godzina",
-    "Obszar / Zasięg",
-    "Kategoria",
-    "Tytuł / Temat",
-    "Streszczenie merytoryczne",
-    "Dla kogo (wiek)",
-    "Warunki wstępu",
-    "Źródło / Link"
-  ];
-
-  zapiszDoArkusza(ss, "1. Lokalne - Przyszłe i Trwające", wynikiLokaleWszystkie, naglowki1);
+  zapiszDoArkusza(ss, "1. Lokalne - Przyszłe", wynikiLokalePrzyszle, naglowki1);
   zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", wynikiGlobalnePrzeszle, naglowki2);
   zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", wynikiGlobalnePrzyszle, naglowki2);
 
-  wyslijRaportEmail(wynikiLokaleWszystkie, wynikiGlobalnePrzeszle, wynikiGlobalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
-}
-
-function normalizujZrodla(zrodlaZPliku, zrodlaDomyslne) {
-  const zrodlaIgnorowane = new Set([
-    "https://wydarzenia.miasto-info.pl/"
-  ]);
-
-  let zrodla = Array.isArray(zrodlaZPliku) ? zrodlaZPliku : [];
-  if (!zrodla.length && Array.isArray(zrodlaDomyslne)) {
-    zrodla = zrodlaDomyslne;
-  }
-
-  return zrodla
-    .map(item => {
-      if (!item || typeof item !== "object") return null;
-      let url = String(item.url || "").trim();
-      if (!url || !/^https?:\/\//i.test(url)) return null;
-      if (zrodlaIgnorowane.has(url)) return null;
-      return {
-        url: url,
-        group: String(item.group || "").trim() || "Inne"
-      };
-    })
-    .filter(Boolean)
-    .filter((item, index, arr) => arr.findIndex(x => x.url === item.url) === index);
-}
-
-function normalizujWynikLokalny(row) {
-  if (!Array.isArray(row) || row.length === 0) return null;
-
-  let wynik = row.map(item => String(item || "").trim());
-
-  while (wynik.length < 8) wynik.push("");
-
-  if (wynik.length === 8) {
-    wynik.push("");
-  }
-
-  if (!wynik[1]) wynik[1] = "Trwa / data niepewna";
-  if (!wynik[2]) wynik[2] = "—";
-  if (!wynik[5]) wynik[5] = "Wszyscy";
-  if (!wynik[6]) wynik[6] = "Brak informacji";
-
-  // Jeżeli dane przychodzą w starej strukturze 6 pól, uzupełnij brakujące elementy.
-  if (wynik.length === 9 && !wynik[7]) {
-    wynik[7] = "Brak informacji";
-  }
-
-  return wynik.slice(0, 8).concat([wynik[8] || ""]);
-}
-
-function normalizujWynikGlobalny(row) {
-  if (!Array.isArray(row) || row.length === 0) return null;
-
-  let wynik = row.map(item => String(item || "").trim());
-
-  while (wynik.length < 9) wynik.push("");
-
-  if (!wynik[1]) wynik[1] = "—";
-  if (!wynik[6]) wynik[6] = "Wszyscy";
-  if (!wynik[7]) wynik[7] = "Brak informacji";
-
-  return wynik.slice(0, 9);
-}
-
-function sformatujZrodloILink(zrodlo, link) {
-  let z = String(zrodlo || "").trim();
-  let l = String(link || "").trim();
-  if (!z && !l) return "";
-  if (z && l) return z + " — " + l;
-  return z || l;
+  wyslijRaportEmail(wynikiLokalePrzyszle, wynikiGlobalnePrzeszle, wynikiGlobalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
 }
 
 /**
@@ -243,14 +111,14 @@ function wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, naz
   try {
     let folderyGlowne = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
     if (!folderyGlowne.hasNext()) throw new Error("Nie znaleziono folderu głównego: " + nazwaGlownegoFolderu);
-
+    
     let folderGlowny = folderyGlowne.next();
     let podfoldery = folderGlowny.getFoldersByName(nazwaPodfolderu);
     if (!podfoldery.hasNext()) throw new Error("Nie znaleziono podfolderu: " + nazwaPodfolderu);
-
+    
     let podfolder = podfoldery.next();
     let pliki = podfolder.getFilesByName(nazwaPliku);
-
+    
     if (pliki.hasNext()) {
       return pliki.next().getBlob().getDataAsString();
     } else {
@@ -268,7 +136,7 @@ function wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, naz
 function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
   let tresc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
   if (!tresc) return null;
-
+  
   try {
     return JSON.parse(tresc);
   } catch (e) {
@@ -285,52 +153,26 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
 
   let instrukcjaCzasowa = "";
   let strukturaKolumn = "";
-  let instrukcjaRozszerzona = "";
 
   if (typRaportu === "lokalne_przyszle") {
-    instrukcjaCzasowa = "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
-      "- Wybierz WYŁĄCZNIE nadchodzące wydarzenia w najbliższych 7 dniach.\n" +
-      "- Ignoruj wydarzenia przeszłe i stałe zajęcia dla dorosłych bez konkretnej daty.";
-
-    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Godzina\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
-
-    instrukcjaRozszerzona = "INSTRUKCJA POLI DODATKOWYCH:\n" +
-      "1. Godzina: jeśli jest konkretna, wpisz ją; jeśli tylko przedział, wpisz np. 14:00-18:00; jeśli brak, wpisz '—'.\n" +
-      "2. Dla kogo (wiek): np. 'Dzieci 4-7 lat', 'Całe rodziny', 'Dzieci 5-12 lat', 'Wszyscy', 'Dorośli'.\n" +
-      "3. Warunki wstępu: wpisz 'Wstęp wolny', 'Wstęp płatny: 20 zł', 'Wymagana rejestracja', 'Publiczne', lub 'Brak informacji'.\n" +
-      "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
-
-  } else if (typRaportu === "lokalne_trwajace") {
-    instrukcjaCzasowa = "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
-      "- Wybierz WYŁĄCZNIE wydarzenia, które trwają teraz, mają charakter ciągły, lub mają aktywny okres obejmujący dzisiaj i najbliższe dni.\n" +
-      "- Nie wybieraj wydarzeń wyłącznie historycznych ani stałych kursów dla dorosłych.";
-
-    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Godzina\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
-
-    instrukcjaRozszerzona = "INSTRUKCJA POLI DODATKOWYCH:\n" +
-      "1. Godzina: jeśli pojawia się w opisie ciągłego wydarzenia, wpisz ją; jeśli nie ma konkretu, wpisz '—'.\n" +
-      "2. Dla kogo (wiek): dla wydarzeń rodzinnych użyj 'Dzieci 4-7 lat', 'Całe rodziny', 'Wszyscy'; dla wydarzeń ogólnych 'Wszyscy'.\n" +
-      "3. Warunki wstępu: wpisz 'Wstęp wolny', 'Wstęp płatny', 'Wymagana rejestracja', 'Publiczne', lub 'Brak informacji'.\n" +
-      "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
-
+    instrukcjaCzasowa = 
+      "BEZWZGLĘDNY WYMÓG CZASOWY:\n" +
+      "- Wybierz WYŁĄCZNIE wydarzenia w PRZYSZŁOŚCI w okresie nadchodzących 7 dni.\n" +
+      "- Całkowicie pomijaj wydarzenia archiwalne (przeszłe) oraz kursy stałe dla dorosłych bez konkretnych dat w nadchodzącym tygodniu.";
+    strukturaKolumn = "\"Obszar / Lokalizacja\", \"Data / Dzień\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
   } else {
     let typOpis = (typRaportu === "globalne_przeszle") ? "co się wydarzyło w minionych 7 dniach" : "co się wydarzy w najbliższych 7 dniach";
     instrukcjaCzasowa = "Analizuj pod kątem kategorii: " + typOpis + ".";
-    strukturaKolumn = "\"Data wydarzenia\", \"Godzina\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo (wiek)\", \"Warunki wstępu\", \"Źródło / Link\"";
-    instrukcjaRozszerzona = "INSTRUKCJA POLI DODATKOWYCH:\n" +
-      "1. Godzina: jeśli jest znana, wpisz ją; jeśli nie, wpisz '—'.\n" +
-      "2. Dla kogo (wiek): 'Profesjonaliści', 'Inwestorzy', 'Ogół społeczeństwa', 'Wszyscy', lub '—'.\n" +
-      "3. Warunki wstępu: 'Publiczne', 'Transmisja online', 'Artykuł / Wiadomość', lub 'Brak informacji'.\n" +
-      "4. Źródło / Link: zwróć dokładnie jedną komórkę w formacie 'Nazwa źródła — https://adres.pl'.";
+    strukturaKolumn = "\"Data wydarzenia\", \"Obszar / Zasięg\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Źródło\", \"Link\"";
   }
 
-  let systemPrompt = "Jesteś zaawansowanym filtrem analitycznym.\n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\n" + instrukcjaRozszerzona + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"\n" + trescZrodla + "\n\"\"\"\n\nWyciągnij TYLKO te wydarzenia, które są istotne i spełniają kryteria czasu oraz tematyczne.\n\nOdpowiedź MUSI być w formacie JSON: {\"dane\": [[...kolumny...]]}.\nUzupełnij wszystkie pola: Obszar / Lokalizacja lub Data wydarzenia, Godzina, Dla kogo (wiek), Warunki wstępu, Źródło / Link.\nZwracaj wyłącznie JSON bez żadnych komentarzy, notatek i markdown.";
+  let systemPrompt = "Jesteś analitykiem. \n\n" + kontekstCzasowy + "\n\n" + filtrProfilu + "\n\n" + instrukcjaCzasowa + "\n\nAnalizuj tekst ze źródła " + source.url + ":\n\"\"\"" + trescZrodla + "\"\"\"\n\nZwróć tylko trafione pozycje w formacie JSON: {\"dane\": [[...], [...], ...]}, gdzie każdy wiersz to tablica zawierająca: " + strukturaKolumn;
 
   const payload = {
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON. Pamiętaj, aby uzupełnić wszystkie pola: Data / Dzień, Godzina, Dla kogo (wiek), Warunki wstępu oraz Źródło / Link. Nie zwracaj nic poza JSON.\n\nStruktura danych: [\n  [" + strukturaKolumn + "]\n]" }
+      { role: "user", content: "Wyodrębnij wyłącznie trafione pozycje w formacie JSON." }
     ],
     response_format: { type: "json_object" },
     temperature: 0.0
@@ -344,20 +186,11 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-
-    let text = response.getContentText();
-    if (!text) return [];
-
-    let json = JSON.parse(text);
-    if (json.error) {
-      Logger.log("DeepSeek API error: " + JSON.stringify(json.error));
-      return [];
-    }
-
+    let json = JSON.parse(response.getContentText());
+    if (json.error) return [];
     let content = json.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(content).dane || [];
   } catch (e) {
-    Logger.log("Błąd przetwarzania DeepSeek: " + e.message);
     return [];
   }
 }
@@ -384,98 +217,94 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
   sheet.clear();
   sheet.appendRow(nagłówki);
   sheet.getRange(1, 1, 1, nagłówki.length).setFontWeight("bold").setBackground("#f3f3f3");
-
   if (dane && dane.length > 0) {
     let startRow = (dane[0][0] === nagłówki[0]) ? 1 : 0;
-    for (let i = startRow; i < dane.length; i++) {
-      sheet.appendRow(dane[i]);
-    }
+    for (let i = startRow; i < dane.length; i++) sheet.appendRow(dane[i]);
   }
-
   sheet.autoResizeColumns(1, nagłówki.length);
 }
 
 /**
  * Wysyła raport e-mail oraz załącza PDF z poprawionym nagłówkiem i tabelą źródeł na końcu.
+ * OPTYMALIZACJA: Limit na ilość wpisów w email (pozostałe w Spreadsheet)
  */
 function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
   let emailAdres = Session.getActiveUser().getEmail();
   let temat = "📰 Migawka Wydarzeń (" + dzisiajStr + ")";
+  
+  const MAX_ROWS_EMAIL = 20;
+  let lokalnePrzyszleEmail = (lokalnePrzyszle || []).slice(0, MAX_ROWS_EMAIL);
+  let globalnePrzeszleEmail = (globalnePrzeszle || []).slice(0, MAX_ROWS_EMAIL);
+  let globalnePrzyszleEmail = (globalnePrzyszle || []).slice(0, MAX_ROWS_EMAIL);
 
-  function generujTabeluZrodelHtml(isPdf = false) {
-    let tdStyle = isPdf ? "padding: 3px 6px; font-size: 9px; color: #64748b; border-bottom: 1px solid #f1f5f9;" : "padding: 4px 8px; font-size: 10px; color: #64748b; border-bottom: 1px solid #f1f5f9;";
-    let thStyle = isPdf ? "padding: 4px 6px; font-size: 9px; color: #475569; background-color: #f8fafc; text-align: left; border-bottom: 1px solid #e2e8f0;" : "padding: 5px 8px; font-size: 10px; color: #475569; background-color: #f8fafc; text-align: left; border-bottom: 1px solid #e2e8f0;";
+  let cssStyles = `<style>
+    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px; }
+    th { border: 1px solid #cbd5e1; padding: 5px; text-align: left; font-size: 9px; color: white; }
+    td { border: 1px solid #cbd5e1; padding: 5px; color: #1e293b; }
+    .group-header { background-color: #f1f5f9; font-weight: bold; color: #334155; }
+    .alt-row { opacity: 0.95; }
+    h2 { color: #1e293b; font-family: Arial, sans-serif; margin: 10px 0; }
+    h3 { border-bottom: 2px solid; padding-bottom: 5px; margin-top: 20px; font-family: Arial, sans-serif; }
+    .sources-table th { background-color: #334155; }
+    .sources-table td { font-size: 9px; color: #64748b; }
+  </style>`;
 
-    return `
-      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-        <h4 style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Monitorowane źródła informacji</h4>
-        <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
-          <thead>
-            <tr>
-              <th style="${thStyle}">Kategoria / Region</th>
-              <th style="${thStyle}">Adres URL źródła</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td style="${tdStyle}"><b>Kraków i okolice (Przedszkola / Szkoły)</b></td><td style="${tdStyle}">przedszkole140.blizej.info</td></tr>
-            <tr><td style="${tdStyle}"><b>Kraków (CK Podgórza / Sokolska / Borek / Iskierka)</b></td><td style="${tdStyle}">sokolska.ckpodgorza.pl, borek.ckpodgorza.pl, iskierka.ckpodgorza.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Kraków (Łagiewniki / Cegielniana / Dzielnica IX)</b></td><td style="${tdStyle}">smcegielniana.pl, dzielnica9.krakow.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Myślenice & Tarnów</b></td><td style="${tdStyle}">csm.tarnow.pl, kultura.tarnow.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Małopolska (Regionalne)</b></td><td style="${tdStyle}">malopolska.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Informacje ogólnopolskie (Polska)</b></td><td style="${tdStyle}">zero.pl, forsal.pl, biznes.pap.pl</td></tr>
-            <tr><td style="${tdStyle}"><b>Globalne / Świat / Europa</b></td><td style="${tdStyle}">politico.eu, rp.pl/wydarzenia/swiat</td></tr>
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
+  let htmlBody = cssStyles;
+  htmlBody += "<h2>🎯 Migawka Wydarzeń (" + dzisiajStr + ")</h2>";
+  htmlBody += "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 12px;\">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>";
 
-  let htmlBody = "<h2 style=\"color: #1e293b; font-family: Arial, sans-serif;\">🎯 Migawka Wydarzeń (" + dzisiajStr + ")</h2>" +
-      "<p style=\"font-family: Arial, sans-serif; color: #475569; font-size: 13px;\">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>";
-
-  htmlBody += "<h3 style=\"color: #047857; border-bottom: 2px solid #047857; padding-bottom: 5px; margin-top: 25px; font-family: Arial, sans-serif;\">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące i trwające)</h3>";
-  if (!lokalnePrzyszle || lokalnePrzyszle.length === 0) {
-    htmlBody += "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak nadchodzących i trwających wydarzeń spełniających kryteria w najbliższych dniach.</em></p>";
+  htmlBody += "<h3 style=\"color: #047857;\">🎡 1. Lokalne, Społeczne, Dzieci i Kultura (Nadchodzące)</h3>";
+  if (!lokalnePrzyszleEmail || lokalnePrzyszleEmail.length === 0) {
+    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak nadchodzących wydarzeń spełniających kryteria w najbliższych dniach.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0);
+    htmlBody += generujTabeleHtmlOpt(lokalnePrzyszleEmail, naglowki1, "#047857", "#ecfdf5", 0);
+    if (lokalnePrzyszle.length > MAX_ROWS_EMAIL) {
+      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + lokalnePrzyszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
+    }
   }
 
-  htmlBody += "<h3 style=\"color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>";
-  if (!globalnePrzeszle || globalnePrzeszle.length === 0) {
-    htmlBody += "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak istotnych wydarzeń w tym okresie.</em></p>";
+  htmlBody += "<h3 style=\"color: #4338ca;\">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>";
+  if (!globalnePrzeszleEmail || globalnePrzeszleEmail.length === 0) {
+    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak istotnych wydarzeń w tym okresie.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 2);
+    htmlBody += generujTabeleHtmlOpt(globalnePrzeszleEmail, naglowki2, "#4338ca", "#e0e7ff", 1);
+    if (globalnePrzeszle.length > MAX_ROWS_EMAIL) {
+      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + globalnePrzeszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
+    }
   }
 
-  htmlBody += "<h3 style=\"color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 5px; margin-top: 30px; font-family: Arial, sans-serif;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>";
-  if (!globalnePrzyszle || globalnePrzyszle.length === 0) {
-    htmlBody += "<p style=\"font-family: Arial, sans-serif; font-size: 12px; color: #64748b;\"><em>Brak zapowiadanych wydarzeń w tym okresie.</em></p>";
+  htmlBody += "<h3 style=\"color: #b45309;\">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>";
+  if (!globalnePrzyszleEmail || globalnePrzyszleEmail.length === 0) {
+    htmlBody += "<p style=\"font-size: 11px; color: #64748b;\"><em>Brak zapowiadanych wydarzeń w tym okresie.</em></p>";
   } else {
-    htmlBody += generujTabeleHtml(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 2);
+    htmlBody += generujTabeleHtmlOpt(globalnePrzyszleEmail, naglowki2, "#b45309", "#fef3c7", 1);
+    if (globalnePrzyszle.length > MAX_ROWS_EMAIL) {
+      htmlBody += "<p style=\"font-size: 10px; color: #94a3b8;\"><em>⚠️ Pokazano " + MAX_ROWS_EMAIL + " z " + globalnePrzyszle.length + " wpisów. Pełna lista w Arkuszu.</em></p>";
+    }
   }
 
-  htmlBody += generujTabeluZrodelHtml(false);
-  htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 11px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści i wydarzeń.</p>";
+  htmlBody += generujTabeluZrodelHtmlOpt();
+  htmlBody += "<br><hr style=\"border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;\"><p style=\"font-size: 10px; color: #94a3b8; font-family: Arial, sans-serif;\">Automatyczny agregator treści • Pełne dane w powiązanym Arkuszu Google</p>";
 
   let pdfBlob = null;
   try {
-    let pdfZawartosc = `
-      <h2 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 18px;">🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
-      <p style="font-family: Arial, sans-serif; color: #475569; font-size: 12px;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
+    let pdfZawartosc = `${cssStyles}
+      <h2>🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
+      <p style="font-size: 11px; color: #475569;">Raport wyselekcjonowany pod kątem rodzinnych wydarzeń w Krakowie, inwestycji oraz kluczowej gospodarki i polityki.</p>
+      
+      <h3 style="color: #047857;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura</h3>
+      ${generujTabelePdfOpt(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0)}
 
-      <h3 style="color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🎡 1. Lokalne, Społeczne, Dzieci i Kultura</h3>
-      ${generujTabeleDoPdf(lokalnePrzyszle, naglowki1, "#047857", "#ecfdf5", 0)}
+      <div style="page-break-before: always; padding-top: 10px;"></div>
+      <h3 style="color: #4338ca;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>
+      ${generujTabelePdfOpt(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 1)}
 
-      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
-      <h3 style="color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">📊 2. Świat, Polityka, Gospodarka – Co się wydarzyło</h3>
-      ${generujTabeleDoPdf(globalnePrzeszle, naglowki2, "#4338ca", "#e0e7ff", 2)}
+      <div style="page-break-before: always; padding-top: 10px;"></div>
+      <h3 style="color: #b45309;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>
+      ${generujTabelePdfOpt(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 1)}
 
-      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
-      <h3 style="color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 14px;">🔮 3. Świat, Polityka, Gospodarka – Co się wydarzy</h3>
-      ${generujTabeleDoPdf(globalnePrzyszle, naglowki2, "#b45309", "#fef3c7", 2)}
-
-      <div style="page-break-before: always; break-before: page; padding-top: 10px;"></div>
-      ${generujTabeluZrodelHtml(true)}
+      <div style="page-break-before: always; padding-top: 10px;"></div>
+      ${generujTabeluZrodelHtmlOpt(true)}
     `;
 
     let completeHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -502,41 +331,36 @@ function wyslijRaportEmail(lokalnePrzyszle, globalnePrzeszle, globalnePrzyszle, 
   MailApp.sendEmail(emailOptions);
 }
 
-function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
-  let html = "<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px;\">";
-  html += "<tr style=\"background-color: " + kolorNaglowka + "; color: white;\">";
+function generujTabeleHtmlOpt(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
+  let html = "<table style=\"background-color: " + kolorNaglowka + ";\">";
+  html += "<tr style=\"color: white;\">";
   nagłówki.forEach(naglowek => {
-    html += "<th style=\"border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-size: 10px;\">" + naglowek + "</th>";
+    html += "<th>" + naglowek + "</th>";
   });
   html += "</tr>";
 
   let ostatniaGrupa = "";
   let i = 0;
-
+  
   dane.forEach(wiersz => {
     let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
     if (aktualnaGrupa !== ostatniaGrupa) {
-      html += "<tr style=\"background-color: #f1f5f9;\">";
-      html += "<td colspan=\"" + nagłówki.length + "\" style=\"border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #334155; font-size: 10px;\">📌 " + aktualnaGrupa + "</td>";
-      html += "</tr>";
+      html += "<tr class=\"group-header\"><td colspan=\"" + nagłówki.length + "\">📌 " + aktualnaGrupa + "</td></tr>";
       ostatniaGrupa = aktualnaGrupa;
       i = 0;
     }
 
-    let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
+    let stylTla = (i % 2 === 0) ? "" : "background-color: " + kolorTla + ";";
     html += "<tr style=\"" + stylTla + "\">";
-
+    
     wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "");
-      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-
-      if (index === wiersz.length - 1 && /^https?:\/\//i.test(zawartosc)) {
-        zawartosc = "<a href=\"" + zawartosc + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + "; font-weight: bold; text-decoration: none;\">Otwórz link</a>";
+      let zawartosc = String(komorka || "").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+      if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
+        zawartosc = "<a href=\"" + zawartosc + "\" target=\"_blank\" style=\"color: " + kolorNaglowka + ";\">Otwórz</a>";
       }
-
-      html += "<td style=\"border: 1px solid #cbd5e1; padding: 7px; color: #1e293b; vertical-align: top; font-size: 10px;\">" + zawartosc + "</td>";
+      html += "<td>" + zawartosc + "</td>";
     });
-
+    
     html += "</tr>";
     i++;
   });
@@ -545,47 +369,63 @@ function generujTabeleHtml(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrup
   return html;
 }
 
-function generujTabeleDoPdf(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
-  if (!dane || dane.length === 0) return "<p style=\"font-family: Arial, sans-serif; font-size: 11px; color: #64748b;\"><em>Brak wpisów w tej sekcji.</em></p>";
-
-  let html = "<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 9px; margin-top: 10px;\">";
-  html += "<tr style=\"background-color: " + kolorNaglowka + "; color: white;\">";
+function generujTabelePdfOpt(dane, nagłówki, kolorNaglowka, kolorTla, indeksGrupy) {
+  if (!dane || dane.length === 0) return "<p style=\"font-size: 10px; color: #64748b;\"><em>Brak wpisów w tej sekcji.</em></p>";
+  
+  let html = "<table style=\"background-color: " + kolorNaglowka + ";\">";
+  html += "<tr style=\"color: white; font-size: 9px;\">";
   nagłówki.forEach(naglowek => {
-    html += "<th style=\"border: 1px solid #cbd5e1; padding: 4px; text-align: left; font-size: 8px;\">" + naglowek + "</th>";
+    html += "<th>" + naglowek + "</th>";
   });
   html += "</tr>";
 
   let ostatniaGrupa = "";
   let i = 0;
-
+  
   dane.forEach(wiersz => {
     let aktualnaGrupa = String(wiersz[indeksGrupy] || "Inne");
     if (aktualnaGrupa !== ostatniaGrupa) {
-      html += "<tr style=\"background-color: #f1f5f9;\">";
-      html += "<td colspan=\"" + nagłówki.length + "\" style=\"border: 1px solid #cbd5e1; padding: 4px; font-weight: bold; color: #334155; font-size: 8px;\">📌 " + aktualnaGrupa + "</td>";
-      html += "</tr>";
+      html += "<tr class=\"group-header\" style=\"font-size: 9px;\"><td colspan=\"" + nagłówki.length + "\">📌 " + aktualnaGrupa + "</td></tr>";
       ostatniaGrupa = aktualnaGrupa;
       i = 0;
     }
 
-    let stylTla = (i % 2 === 0) ? "background-color: #ffffff;" : "background-color: " + kolorTla + ";";
-    html += "<tr style=\"" + stylTla + "\">";
-
+    let stylTla = (i % 2 === 0) ? "" : "background-color: " + kolorTla + ";";
+    html += "<tr style=\"" + stylTla + " font-size: 8px;\">";
+    
     wiersz.forEach((komorka, index) => {
-      let zawartosc = String(komorka || "");
-      zawartosc = zawartosc.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-
-      if (index === wiersz.length - 1 && /^https?:\/\//i.test(zawartosc)) {
-        zawartosc = "<a href=\"" + zawartosc + "\" style=\"color: " + kolorNaglowka + "; text-decoration: underline;\">Link</a>";
+      let zawartosc = String(komorka || "").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+      if (index === wiersz.length - 1 && zawartosc.startsWith('http')) {
+        zawartosc = "<a href=\"" + zawartosc + "\" style=\"color: " + kolorNaglowka + ";\">Link</a>";
       }
-
-      html += "<td style=\"border: 1px solid #cbd5e1; padding: 4px; color: #1e293b; vertical-align: top; font-size: 8px;\">" + zawartosc + "</td>";
+      html += "<td>" + zawartosc + "</td>";
     });
-
+    
     html += "</tr>";
     i++;
   });
 
   html += "</table>";
   return html;
+}
+
+function generujTabeluZrodelHtmlOpt(isPdf = false) {
+  let fontSize = isPdf ? "8px" : "9px";
+  return `
+    <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+      <h4 style="margin: 0 0 5px 0; font-size: 10px; color: #64748b; text-transform: uppercase;">Monitorowane źródła</h4>
+      <table class="sources-table" style="font-size: ${fontSize};">
+        <thead><tr><th>Kategoria / Region</th><th>Adresy URL</th></tr></thead>
+        <tbody>
+          <tr><td><b>Kraków (Przedszkola)</b></td><td>przedszkole140.blizej.info</td></tr>
+          <tr><td><b>Kraków (CK Podgórza)</b></td><td>sokolska.ckpodgorza.pl, borek.ckpodgorza.pl, iskierka.ckpodgorza.pl</td></tr>
+          <tr><td><b>Kraków (Łagiewniki)</b></td><td>smcegielniana.pl, dzielnica9.krakow.pl</td></tr>
+          <tr><td><b>Tarnów</b></td><td>csm.tarnow.pl, kultura.tarnow.pl</td></tr>
+          <tr><td><b>Małopolska</b></td><td>malopolska.pl</td></tr>
+          <tr><td><b>Polska</b></td><td>zero.pl, forsal.pl, biznes.pap.pl</td></tr>
+          <tr><td><b>Globalne</b></td><td>politico.eu, rp.pl</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
 }
