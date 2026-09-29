@@ -1,18 +1,29 @@
 /**
- * Zbalansowana wersja skryptu Migawka Wydarzeń:
- * - Pobiera do 18 000 znaków (obejmuje całe kalendaria)
- * - Podaje modelowi kompletną mapę dni nadchodzącego tygodnia
- * - Uelastycznia parsowanie dat w JS (obsługuje zakresy i elastyczne formaty)
+ * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
+ * - Dynamiczne pobieranie listy odbiorców z pliku emails.txt (Automation/Migawka Wydarzeń)
+ * - Wysyłka raportu do każdego adresata kolejno w osobnej wiadomości
+ * - Bufor tekstu do 18 000 znaków (obejmuje pełne kalendaria)
+ * - Trzy rundy analizy czasowej dla każdego źródła (przeszłe, trwające, przyszłe)
+ * - Twarda weryfikacja dat po stronie kodu JS z jawną mapą dni tygodnia
+ * - Ekstrakcja bezpośrednich linków do artykułów/wydarzeń
+ * - Zapis do dokładnie 3 zakładek w Arkuszu Google
+ * - Identyczna forma tabelaryczna w e-mailu oraz w załączniku PDF
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
+  // Wczytanie źródeł, promptu i listy odbiorców z Google Drive
   const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
   const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   
+  let odbiorcyEmail = wczytajAdresyEmailZPliku("Automation", "Migawka Wydarzeń", "emails.txt");
+  if (!odbiorcyEmail || odbiorcyEmail.length === 0) {
+    odbiorcyEmail = [Session.getActiveUser().getEmail()];
+  }
+
   if (!filtrProfilu) {
-    filtrProfilu = "Tryb: Ojciec 2 córek w Krakowie (czas wolny, warsztaty, kultura), inwestor śledzący rynki i kluczowe zmiany w mieście.";
+    filtrProfilu = "Domyślny tryb: Ojciec 2 córek w Krakowie (czas wolny/dzieci), inwestor śledzący rynki i kluczowe zmiany w mieście. Całkowity zakaz szumu informacyjnego.";
   }
 
   let dzisiaj = new Date();
@@ -26,7 +37,7 @@ function generujRaportWiadomosci() {
 
   let formatD = (d) => d.toISOString().split('T')[0];
 
-  // Przygotowanie jawnej mapy dni tygodnia na najbliższe 7 dni, aby model nie musiał zgadywać
+  // Przygotowanie jawnej mapy dni tygodnia na najbliższe 7 dni
   let dniTygodniaPL = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
   let mapaDniNadchodzacych = [];
   for (let i = 0; i <= 7; i++) {
@@ -59,7 +70,6 @@ function generujRaportWiadomosci() {
       let url = unikalneUrle[index];
       if (resp.getResponseCode() === 200) {
         let tekstZLinkami = wyczyscHtmlZZachowaniemLinkow(resp.getContentText(), url);
-        // Zwiększony limit, aby nie ucinać kalendarza wydarzeń
         tresciStron[url] = tekstZLinkami.length > 18000 ? tekstZLinkami.substring(0, 18000) : tekstZLinkami;
       } else {
         tresciStron[url] = ""; 
@@ -77,15 +87,13 @@ function generujRaportWiadomosci() {
   let globalnePrzyszle = [];
 
   // ==========================================
-  // ŹRÓDŁA LOKALNE
+  // ŹRÓDŁA LOKALNE - 3 RUNDY Z WERYFIKACJĄ
   // ==========================================
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      // Runda 1: Przeszłe (weryfikacja w tle)
       zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
 
-      // Runda 2: Trwające
       let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_trwajace", filtrProfilu);
       if (r2) {
         let r2Valid = r2.filter(row => {
@@ -95,7 +103,6 @@ function generujRaportWiadomosci() {
         lokalneTrwajace = lokalneTrwajace.concat(r2Valid);
       }
 
-      // Runda 3: Przyszłe (nadchodzący tydzień)
       let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
       if (r3) {
         let r3Valid = r3.filter(row => {
@@ -108,7 +115,7 @@ function generujRaportWiadomosci() {
   });
 
   // ==========================================
-  // ŹRÓDŁA GLOBALNE
+  // ŹRÓDŁA GLOBALNE - 3 RUNDY Z WERYFIKACJĄ
   // ==========================================
   SOURCES_GLOBALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
@@ -133,10 +140,10 @@ function generujRaportWiadomosci() {
     }
   });
 
-  // Usunięcie duplikatów (jeśli to samo wydarzenie wpadło do trwających i przyszłych)
+  // Usunięcie duplikatów z listy lokalnej
   let mapaLokalne = new Map();
   [...lokalnePrzyszle, ...lokalneTrwajace].forEach(item => {
-    let klucz = (item[3] || "").toLowerCase().trim(); // po tytule
+    let klucz = (item[3] || "").toLowerCase().trim();
     if (!mapaLokalne.has(klucz)) mapaLokalne.set(klucz, item);
   });
   let tabela1Lokalne = Array.from(mapaLokalne.values());
@@ -144,20 +151,45 @@ function generujRaportWiadomosci() {
   let tabela2GlobalnePrzeszle = globalnePrzeszle;
   let tabela3GlobalnePrzyszle = [...globalneTrwajace, ...globalnePrzyszle];
 
-  sortujIGrupujWyniki(tabela1Lokalne, 1, 0); // sortuj po dacie, potem po obszarze
+  sortujIGrupujWyniki(tabela1Lokalne, 1, 0);
   sortujIGrupujWyniki(tabela2GlobalnePrzeszle, 0, 2);
   sortujIGrupujWyniki(tabela3GlobalnePrzyszle, 0, 2);
 
   let naglowkiLokalne = ["Obszar / Lokalizacja", "Data / Dzień", "Godzina", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wydarzenia"];
   let naglowkiGlobalne = ["Data wydarzenia", "Godzina", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wiadomości"];
 
+  // Zapis do 3 zakładek w GSheet
   zapiszDoArkusza(ss, "1. Lokalne - Trwające i przyszłe (w tym tygdoniu)", tabela1Lokalne, naglowkiLokalne);
   zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", tabela2GlobalnePrzeszle, naglowkiGlobalne);
   zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", tabela3GlobalnePrzyszle, naglowkiGlobalne);
 
-  wyslijRaportEmailTabelaryczny(tabela1Lokalne, tabela2GlobalnePrzeszle, tabela3GlobalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr);
+  // Wysłanie raportu Email (indywidualnie) + PDF
+  wyslijRaportEmailTabelaryczny(tabela1Lokalne, tabela2GlobalnePrzeszle, tabela3GlobalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr, odbiorcyEmail);
 }
 
+/**
+ * Wczytuje adresy e-mail z pliku tekstowego na Dysku Google.
+ */
+function wczytajAdresyEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
+  let zawartosc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
+  if (!zawartosc) return null;
+
+  let suroweWpisy = zawartosc.split(/[\r\n,;]+/);
+  let adresy = [];
+
+  suroweWpisy.forEach(wpis => {
+    let email = wpis.trim();
+    if (email && email.includes("@") && email.includes(".")) {
+      adresy.push(email);
+    }
+  });
+
+  return [...new Set(adresy)];
+}
+
+/**
+ * Zapytanie do modelu DeepSeek
+ */
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
   if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
@@ -235,25 +267,22 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
 }
 
 /**
- * Uelastyczniona walidacja daty w JS (przepuszcza poprawne formaty, zakresy i "Trwa")
+ * Uelastyczniona walidacja daty w JS
  */
 function czyDataWMiasteczkuCzasowym(dataStr, typOkna, dzisiaj, przed7Dni, za7Dni) {
   if (!dataStr) return false;
   let str = String(dataStr).trim();
 
-  // Wpisy stałe lub bezterminowe
   if (str.toLowerCase().includes("trwa") || str.toLowerCase().includes("dzisiaj")) {
     return (typOkna === "trwajace" || typOkna === "przyszle");
   }
 
-  // Wyszukanie pierwszej daty w formacie YYYY-MM-DD
   let match = str.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (!match) {
     let matchPL = str.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/);
     if (matchPL) {
       match = [null, matchPL[3], matchPL[2], matchPL[1]];
     } else {
-      // Jeśli AI podało inny format, ale zawiera nazwę dnia lub informację o nadchodzącym tygodniu, przepuszczamy
       return true;
     }
   }
@@ -274,12 +303,14 @@ function czyDataWMiasteczkuCzasowym(dataStr, typOkna, dzisiaj, przed7Dni, za7Dni
   } else if (typOkna === "trwajace") {
     return dataWydarzenia.getTime() === d0.getTime() || str.toLowerCase().includes("trwa");
   } else if (typOkna === "przyszle") {
-    // Przyszłe wydarzenia: od dzisiaj włącznie do +7 dni w przód
     return dataWydarzenia >= d0 && dataWydarzenia <= dPlus7;
   }
   return false;
 }
 
+/**
+ * Zamienia HTML na tekst z zachowaniem linków
+ */
 function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
   let domain = "";
   try {
@@ -289,8 +320,6 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
 
   let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
   text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
-
-  // Znaczniki blokowe zamieniane na nową linię, by daty nie zlewały się z nagłówkami
   text = text.replace(/<\/(div|p|li|article|section|tr|h\d)>/gi, "\n");
 
   text = text.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, function(match, href, anchorText) {
@@ -312,6 +341,9 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
   return text.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
 }
 
+/**
+ * Buduje zunifikowaną treść tabelaryczną HTML wspólną dla Emaila i PDF
+ */
 function generujCialoRaportuTabelarycznego(lokalne, globalnePrzeszle, globalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr, dlaPdf) {
   let stylowanieTabeli = dlaPdf 
     ? "font-size: 8px; margin-top: 8px; margin-bottom: 16px;" 
@@ -347,6 +379,9 @@ function generujCialoRaportuTabelarycznego(lokalne, globalnePrzeszle, globalnePr
   return html;
 }
 
+/**
+ * Buduje tabelę z responsywnym kodem HTML
+ */
 function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, stylowanieDodatkowe, dlaPdf) {
   if (!dane || dane.length === 0) {
     return `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin-bottom: 16px;">Brak odnotowanych pozycji w tej kategorii.</p>`;
@@ -380,6 +415,9 @@ function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, st
   return html;
 }
 
+/**
+ * Formatuje link do czytelnego przycisku lub hiperłącza
+ */
 function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
   if (!tekst || tekst === "—") return "—";
 
@@ -403,8 +441,16 @@ function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
   return tekst;
 }
 
-function wyslijRaportEmailTabelaryczny(lokalne, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr) {
-  let emailAdres = Session.getActiveUser().getEmail();
+/**
+ * Wysyła raport tabelaryczny do każdego odbiorcy z listy kolejno w osobnym mailu
+ */
+function wyslijRaportEmailTabelaryczny(lokalne, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr, listaOdbiorcow) {
+  let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
+  if (odbiorcy.length === 0) {
+    Logger.log("Brak odbiorców do wysyłki.");
+    return;
+  }
+
   let temat = "🎯 Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
 
   let emailHtml = `
@@ -431,17 +477,31 @@ function wyslijRaportEmailTabelaryczny(lokalne, globalnePrzeszle, globalnePrzysz
     Logger.log("Błąd generowania PDF: " + e.message);
   }
 
-  let emailOptions = {
-    to: emailAdres,
-    subject: temat,
-    htmlBody: emailHtml
-  };
+  odbiorcy.forEach((adresat, index) => {
+    let emailCzysty = adresat.trim();
+    if (!emailCzysty) return;
 
-  if (pdfBlob) {
-    emailOptions.attachments = [pdfBlob];
-  }
+    let emailOptions = {
+      to: emailCzysty,
+      subject: temat,
+      htmlBody: emailHtml
+    };
 
-  MailApp.sendEmail(emailOptions);
+    if (pdfBlob) {
+      emailOptions.attachments = [pdfBlob];
+    }
+
+    try {
+      MailApp.sendEmail(emailOptions);
+      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano raport do: ${emailCzysty}`);
+      
+      if (index < odbiorcy.length - 1) {
+        Utilities.sleep(500);
+      }
+    } catch (err) {
+      Logger.log(`Błąd podczas wysyłki do ${emailCzysty}: ${err.message}`);
+    }
+  });
 }
 
 function sortujIGrupujWyniki(dane, indeksGlowny, indeksPodrzedny) {
