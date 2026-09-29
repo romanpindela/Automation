@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - WERSJA Z KOLUMNĄ "GDZIE" (BEZ KOLUMNY "OBSZAR" W E-MAILU)
+ * MIGAWKA WYDARZEŃ - HERBY I NAZWY OBSZARÓW BEZPOŚREDNIO W NAGŁÓWKU KOLUMNY "GDZIE"
  */
 
 function generujRaportWiadomosci() {
@@ -119,7 +119,7 @@ function generujRaportWiadomosci() {
   // Deduplikacja
   let mapaRodziny = new Map();
   sekcja1_Rodziny.forEach(item => {
-    let tytul = (item[4] || "").toLowerCase().trim(); // Tytuł jest na indeksie 4
+    let tytul = (item[4] || "").toLowerCase().trim();
     if (tytul && !mapaRodziny.has(tytul)) mapaRodziny.set(tytul, item);
   });
   sekcja1_Rodziny = Array.from(mapaRodziny.values());
@@ -142,7 +142,7 @@ function generujRaportWiadomosci() {
   sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
   sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
-  // Nagłówki bazy w Arkuszu Google (z Obszarem dla celów analitycznych)
+  // Nagłówki bazy w Arkuszu Google
   let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
   let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
@@ -152,7 +152,7 @@ function generujRaportWiadomosci() {
 
   let mapaUrlIkon = wczytajIkonyHerbowZDrive();
 
-  // Wysłanie raportu email (bez kolumny Obszar, z nową kolumną Gdzie)
+  // Wysłanie raportu email
   wyslijRaportEmailTabelaryczny(
     sekcja1_Rodziny, 
     sekcja2_WydarzyloSie, 
@@ -213,15 +213,15 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z KOLUMNĄ "GDZIE", BEZ "OBSZAR")
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z HERBEM W NAGŁÓWKU KOLUMNY)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
   mapaUrlIkon = mapaUrlIkon || {};
 
-  // Nagłówki w e-mailu (kolumna Obszar usunięta, dodana kolumna Gdzie)
-  const naglowkiEmailRodziny = ["Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  const naglowkiEmailOgolne = ["Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  // Pozostałe nagłówki kolumn w e-mailu (kolumna pierwsza jest generowana dynamicznie z herbem)
+  const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
+  const resztaKolumnOgolne = ["Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   const konfiguracjaRodziny = [
     { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
@@ -251,7 +251,7 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
         <h3 style="font-size: 16px; color: #166534; margin: 0 0 14px 0; border-bottom: 2px solid #166534; padding-bottom: 4px;">
           1. Wydarzenia dla Rodzin
         </h3>
-        ${budujGrupyZHerbami(daneRodziny, naglowkiEmailRodziny, konfiguracjaRodziny, "#166534", "#f0fdf4", mapaUrlIkon, 8)}
+        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#166534", "#f0fdf4", mapaUrlIkon, 8)}
       </div>
 
       <!-- 2. CO SIĘ WYDARZYŁO (MINIONE 7 DNI) -->
@@ -259,7 +259,7 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
         <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 14px 0; border-bottom: 2px solid #1e293b; padding-bottom: 4px;">
           2. Co się wydarzyło (Minione 7 dni)
         </h3>
-        ${budujGrupyZHerbami(daneWydarzylo, naglowkiEmailOgolne, konfiguracjaOgolna, "#334155", "#f8fafc", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#334155", "#f8fafc", mapaUrlIkon, 6)}
       </div>
 
       <!-- 3. CO JEST W PLANACH ? -->
@@ -267,18 +267,18 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
         <h3 style="font-size: 16px; color: #92400e; margin: 0 0 14px 0; border-bottom: 2px solid #92400e; padding-bottom: 4px;">
           3. Co jest w planach ?
         </h3>
-        ${budujGrupyZHerbami(danePlany, naglowkiEmailOgolne, konfiguracjaOgolna, "#92400e", "#fffbeb", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#92400e", "#fffbeb", mapaUrlIkon, 6)}
       </div>
     </div>
   `;
 }
 
-function budujGrupyZHerbami(dane, naglowkiTabeli, konfiguracja, kolorNagl, kolorWierszaAlt, mapaUrlIkon, limitWpisow) {
+function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kolorNagl, kolorWierszaAlt, mapaUrlIkon, limitWpisow) {
   let html = "";
   let pozostale = [...(dane || [])];
 
   konfiguracja.forEach(pozycja => {
-    // Wiersz: indeks 0 = Obszar (używany wyłącznie do grupowania i dopasowania herbu)
+    // Wiersz: indeks 0 = Obszar (używany do filtrowania)
     let wierszeDlaPozycji = pozostale.filter(row => {
       let obszar = String(row[0] || "").toLowerCase();
       return pozycja.filtr.some(slowo => obszar.includes(slowo));
@@ -287,20 +287,20 @@ function budujGrupyZHerbami(dane, naglowkiTabeli, konfiguracja, kolorNagl, kolor
     pozostale = pozostale.filter(row => !wierszeDlaPozycji.includes(row));
 
     let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
-    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="${pozycja.etykieta}" style="height: 20px; width: auto; vertical-align: middle; margin-right: 8px;" />` : "";
+    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px;" />` : "";
 
-    // Przygotowujemy dane do tabeli e-maila: usuwamy kolumnę indeksu 0 (Obszar), 
-    // a pierwszym polem staje się indeks 1 (Gdzie)
+    // Nagłówek pierwszej kolumny zawiera herb + nazwę miejscowości zamiast napisu "Gdzie"
+    let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong>${pozycja.etykieta}</strong></span>`;
+    let pelneNaglowkiTabeli = [naglowekPierwszejKolumny, ...pozostaleNaglowki];
+
+    // Odrzucamy kolumnę indeksu 0 (Obszar) – pierwszym elementem wiersza staje się dokładne miejsce (Gdzie)
     let wierszeDoEmaila = wierszeDlaPozycji.map(row => row.slice(1));
 
     html += `
-      <div style="margin-top: 14px; margin-bottom: 18px;">
-        <div style="font-weight: bold; font-size: 14px; color: #0f172a; margin-bottom: 6px; display: flex; align-items: center;">
-          ${imgTag}<span>${pozycja.etykieta}</span>
-        </div>
+      <div style="margin-top: 10px; margin-bottom: 14px;">
         ${wierszeDoEmaila.length > 0 
-          ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), naglowkiTabeli, kolorNagl, kolorWierszaAlt)
-          : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 2px 0 10px 28px;">Brak odnotowanych pozycji w tym okresie.</p>`
+          ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), pelneNaglowkiTabeli, kolorNagl, kolorWierszaAlt)
+          : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 4px 0 8px 8px;">${imgTag}<strong>${pozycja.etykieta}</strong>: Brak nowych wpisów w tym okresie.</p>`
         }
       </div>
     `;
@@ -315,8 +315,10 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
   let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0;">`;
   
   html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
-  naglowki.forEach(naglowek => {
-    html += `<th style="border: 1px solid #cbd5e1; padding: 5px 6px; text-align: left; font-weight: 600;">${naglowek}</th>`;
+  naglowki.forEach((naglowek, idx) => {
+    // Pierwsza kolumna ma nieco szersze/wyróżnione formatowanie dla herbu i nazwy
+    let stylPierwszej = (idx === 0) ? "white-space: nowrap; font-size: 12px;" : "";
+    html += `<th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600; ${stylPierwszej}">${naglowek}</th>`;
   });
   html += `</tr></thead><tbody>`;
 
@@ -333,8 +335,7 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
         tekst = tekst.substring(0, 220) + "...";
       }
       
-      // Jeśli pole "Gdzie" lub inne pole tekstowe jest puste, nie wyświetlamy "—", lecz pozostaje puste
-      html += `<td style="border: 1px solid #cbd5e1; padding: 4px 6px; vertical-align: top; line-height: 1.3;">${tekst}</td>`;
+      html += `<td style="border: 1px solid #cbd5e1; padding: 5px 6px; vertical-align: top; line-height: 1.3;">${tekst}</td>`;
     });
     html += `</tr>`;
   });
@@ -398,7 +399,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
 }
 
 // ============================================================================
-// KOMUNIKACJA Z DEEPSEEK AI - Z EKSTRAKCJĄ KOLUMNY "GDZIE"
+// KOMUNIKACJA Z DEEPSEEK AI
 // ============================================================================
 
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
@@ -440,7 +441,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
     "2. 'Gdzie': dokładne, konkretne miejsce wydarzenia (np. 'Teatr Groteska', 'Krakowski Park Technologiczny', 'Rynek', 'Bruksela'). JEŚLI MIEJSCE PUNKTOWE NIE JEST PODANE LUB DOTYCZY CAŁEGO OBSZARU/KRAJU - POZOSTAW TO POLE CAŁKOWICIE PUSTE (\"\").\n" +
     "3. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
-    "4. W kolumnie 'Link' umieść bezpośredni adres [Link: ...].\n\n" +
+    "4. W kolumnie 'Link' umieść bezpośredni odnośnik w formacie [Link: ...].\n\n" +
     "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
     "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu: " + strukturaKolumn + ".";
 
