@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - HERBY I NAZWY OBSZARÓW BEZPOŚREDNIO W NAGŁÓWKU KOLUMNY "GDZIE"
+ * MIGAWKA WYDARZEŃ - POPRAWIONA OBSŁUGA LINKÓW I STRUKTURA Z HERBAMI
  */
 
 function generujRaportWiadomosci() {
@@ -219,7 +219,6 @@ function wczytajIkonyHerbowZDrive() {
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
   mapaUrlIkon = mapaUrlIkon || {};
 
-  // Pozostałe nagłówki kolumn w e-mailu (kolumna pierwsza jest generowana dynamicznie z herbem)
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
   const resztaKolumnOgolne = ["Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
@@ -278,7 +277,6 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
   let pozostale = [...(dane || [])];
 
   konfiguracja.forEach(pozycja => {
-    // Wiersz: indeks 0 = Obszar (używany do filtrowania)
     let wierszeDlaPozycji = pozostale.filter(row => {
       let obszar = String(row[0] || "").toLowerCase();
       return pozycja.filtr.some(slowo => obszar.includes(slowo));
@@ -289,12 +287,23 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
     let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
     let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px;" />` : "";
 
-    // Nagłówek pierwszej kolumny zawiera herb + nazwę miejscowości zamiast napisu "Gdzie"
     let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong>${pozycja.etykieta}</strong></span>`;
     let pelneNaglowkiTabeli = [naglowekPierwszejKolumny, ...pozostaleNaglowki];
 
-    // Odrzucamy kolumnę indeksu 0 (Obszar) – pierwszym elementem wiersza staje się dokładne miejsce (Gdzie)
-    let wierszeDoEmaila = wierszeDlaPozycji.map(row => row.slice(1));
+    // Odrzucamy kolumnę 0 (Obszar) i gwarantujemy, że ostatnią kolumną jest zawsze Link
+    let wierszeDoEmaila = wierszeDlaPozycji.map(row => {
+      let link = row[row.length - 1];
+      let reszta = row.slice(1, row.length - 1);
+      let docelowaLiczbaSrodka = pelneNaglowkiTabeli.length - 2; // bez pierwszej i bez linku
+      while (reszta.length < docelowaLiczbaSrodka) {
+        reszta.push("");
+      }
+      if (reszta.length > docelowaLiczbaSrodka) {
+        reszta = reszta.slice(0, docelowaLiczbaSrodka);
+      }
+      reszta.push(link);
+      return reszta;
+    });
 
     html += `
       <div style="margin-top: 10px; margin-bottom: 14px;">
@@ -316,7 +325,6 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
   
   html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
   naglowki.forEach((naglowek, idx) => {
-    // Pierwsza kolumna ma nieco szersze/wyróżnione formatowanie dla herbu i nazwy
     let stylPierwszej = (idx === 0) ? "white-space: nowrap; font-size: 12px;" : "";
     html += `<th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600; ${stylPierwszej}">${naglowek}</th>`;
   });
@@ -329,7 +337,9 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
       let tekst = String(komorka || "").trim();
       let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
       
-      if (jestOstatniaKolumna || tekst.includes("http")) {
+      if (jestOstatniaKolumna) {
+        tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
+      } else if (tekst.startsWith("http://") || tekst.startsWith("https://")) {
         tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
       } else if (tekst.length > 220) {
         tekst = tekst.substring(0, 220) + "...";
@@ -344,15 +354,24 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
   return html;
 }
 
-function formatujKomorkeZLinkiem(tekst, kolor) {
+function wyodrebnijCzystyUrl(tekst) {
   if (!tekst) return "";
+  let str = String(tekst).trim();
+  if (str.startsWith("www.")) str = "https://" + str;
+  let match = str.match(/https?:\/\/[^\s"'<>\)\]]+/i);
+  if (!match) return "";
+  let url = match[0];
+  // Usunięcie znaków interpunkcyjnych i zamykających nawiasów z końca adresu
+  url = url.replace(/[.,;:\)\]>]+$/, "").trim();
+  return url;
+}
 
-  let matchUrl = tekst.match(/https?:\/\/[^\s"'<>\)]+/);
-  if (matchUrl) {
-    let url = matchUrl[0];
-    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; display: inline-block;">Link ↗</a>`;
+function formatujKomorkeZLinkiem(tekst, kolor) {
+  let url = wyodrebnijCzystyUrl(tekst);
+  if (url) {
+    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block;">Link ↗</a>`;
   }
-  return tekst;
+  return "—";
 }
 
 function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaOdbiorcow, mapaUrlIkon) {
@@ -439,9 +458,9 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     instrukcjaZadaniowa + "\n\n" +
     "REGUŁY DOTYCZĄCE KOLUMN:\n" +
     "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
-    "2. 'Gdzie': dokładne, konkretne miejsce wydarzenia (np. 'Teatr Groteska', 'Krakowski Park Technologiczny', 'Rynek', 'Bruksela'). JEŚLI MIEJSCE PUNKTOWE NIE JEST PODANE LUB DOTYCZY CAŁEGO OBSZARU/KRAJU - POZOSTAW TO POLE CAŁKOWICIE PUSTE (\"\").\n" +
+    "2. 'Gdzie': dokładne, konkretne miejsce wydarzenia (np. 'Teatr Groteska', 'Rynek'). Jeśli dotyczy całego obszaru lub brak punktu, pozostaw to pole puste (\"\").\n" +
     "3. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
-    "4. W kolumnie 'Link' umieść bezpośredni odnośnik w formacie [Link: ...].\n\n" +
+    "4. W kolumnie 'Link': podaj bezpośredni, pełny adres URL (np. 'https://...'). Nie dodawaj nawiasów ani prefiksów. Jeśli w tekście brak bezpośredniego linku do artykułu, wstaw: '" + source.url + "'.\n\n" +
     "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
     "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu: " + strukturaKolumn + ".";
 
@@ -472,7 +491,25 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     }
 
     let content = jsonResp.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
-    return bezpiecznyParseJson(content);
+    let rows = bezpiecznyParseJson(content);
+    
+    // Gwarantowany fallback adresu URL dla każdego wygenerowanego wiersza
+    return rows.map(row => {
+      if (!Array.isArray(row) || row.length === 0) return row;
+      let lastIdx = row.length - 1;
+      let czystyUrl = wyodrebnijCzystyUrl(row[lastIdx]);
+      if (!czystyUrl) {
+        for (let i = 0; i < row.length - 1; i++) {
+          let u = wyodrebnijCzystyUrl(row[i]);
+          if (u) {
+            czystyUrl = u;
+            break;
+          }
+        }
+      }
+      row[lastIdx] = czystyUrl || source.url;
+      return row;
+    });
   } catch (e) {
     Logger.log("Błąd DeepSeek: " + e.message);
     return [];
