@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - NAPRAWIONE KOLUMNY ORAZ 2X WIĘKSZE LOGO HERBÓW/FLAG
+ * MIGAWKA WYDARZEŃ - ELEGANCKI DESIGN TABEL (BIAŁE TŁO, KOLOROWY AKCENT, IKONY 18PX)
  */
 
 function generujRaportWiadomosci() {
@@ -126,14 +126,14 @@ function generujRaportWiadomosci() {
 
   let mapaWydarzylo = new Map();
   sekcja2_WydarzyloSie.forEach(item => {
-    let tytul = (item[4] || "").toLowerCase().trim();
+    let tytul = (item[5] || item[4] || "").toLowerCase().trim();
     if (tytul && !mapaWydarzylo.has(tytul)) mapaWydarzylo.set(tytul, item);
   });
   sekcja2_WydarzyloSie = Array.from(mapaWydarzylo.values());
 
   let mapaPlany = new Map();
   sekcja3_WPlanach.forEach(item => {
-    let tytul = (item[4] || "").toLowerCase().trim();
+    let tytul = (item[5] || item[4] || "").toLowerCase().trim();
     if (tytul && !mapaPlany.has(tytul)) mapaPlany.set(tytul, item);
   });
   sekcja3_WPlanach = Array.from(mapaPlany.values());
@@ -142,7 +142,6 @@ function generujRaportWiadomosci() {
   sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
   sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
-  // Zapis bazy w Arkuszu Google
   let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
   let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
@@ -152,7 +151,6 @@ function generujRaportWiadomosci() {
 
   let mapaUrlIkon = wczytajIkonyHerbowZDrive();
 
-  // Wysłanie raportu email
   wyslijRaportEmailTabelaryczny(
     sekcja1_Rodziny, 
     sekcja2_WydarzyloSie, 
@@ -164,7 +162,7 @@ function generujRaportWiadomosci() {
 }
 
 // ============================================================================
-// POBIERANIE LINKÓW DO HERBÓW (W ROZDZIELCZOŚCI DO 120px)
+// POBIERANIE LINKÓW DO HERBÓW (OPTYMALNY ROZMIAR MINIATURY)
 // ============================================================================
 
 function wczytajIkonyHerbowZDrive() {
@@ -202,8 +200,7 @@ function wczytajIkonyHerbowZDrive() {
       if (pliki.hasNext()) {
         let plik = pliki.next();
         plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        // Pobieramy miniaturę w 120px dla idealnej ostrości przy 2x większym rozmiarze
-        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w120";
+        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w60";
       }
     }
   } catch (e) {
@@ -214,16 +211,13 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (POPRAWIONE KOLUMNY I WIĘKSZE LOGO)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (BIAŁE TŁO + AKCENT LINII)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
   mapaUrlIkon = mapaUrlIkon || {};
 
-  // Sekcja 1 ma 7 kolumn po odcięciu kolumny Obszar
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  
-  // Sekcje 2 i 3 mają 7 kolumn po odcięciu kolumny Obszar
   const resztaKolumnOgolne = ["Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   const konfiguracjaRodziny = [
@@ -241,8 +235,8 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
   ];
 
   return `
-    <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 940px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
-      <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 4px; border-bottom: 2px solid #cbd5e1; padding-bottom: 6px;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 960px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
+      <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 4px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
         🎯 Migawka Wydarzeń (${dzisiajStr})
       </h2>
       <p style="font-size: 12px; color: #64748b; margin-top: 4px; margin-bottom: 24px;">
@@ -250,33 +244,33 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
       </p>
 
       <!-- 1. WYDARZENIA DLA RODZIN -->
-      <div style="margin-bottom: 30px;">
-        <h3 style="font-size: 16px; color: #166534; margin: 0 0 14px 0; border-bottom: 2px solid #166534; padding-bottom: 4px;">
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 16px; color: #065f46; margin: 0 0 14px 0; border-bottom: 2px solid #059669; padding-bottom: 5px;">
           1. Wydarzenia dla Rodzin
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#166534", "#f0fdf4", mapaUrlIkon, 8)}
+        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#059669", "#f0fdf4", mapaUrlIkon, 8)}
       </div>
 
       <!-- 2. CO SIĘ WYDARZYŁO (MINIONE 7 DNI) -->
-      <div style="margin-bottom: 30px;">
-        <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 14px 0; border-bottom: 2px solid #1e293b; padding-bottom: 4px;">
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 16px; color: #1e3a8a; margin: 0 0 14px 0; border-bottom: 2px solid #2563eb; padding-bottom: 5px;">
           2. Co się wydarzyło (Minione 7 dni)
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#334155", "#f8fafc", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#2563eb", "#f8fafc", mapaUrlIkon, 6)}
       </div>
 
       <!-- 3. CO JEST W PLANACH ? -->
-      <div style="margin-bottom: 30px;">
-        <h3 style="font-size: 16px; color: #92400e; margin: 0 0 14px 0; border-bottom: 2px solid #92400e; padding-bottom: 4px;">
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 16px; color: #9a3412; margin: 0 0 14px 0; border-bottom: 2px solid #d97706; padding-bottom: 5px;">
           3. Co jest w planach ?
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#92400e", "#fffbeb", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#d97706", "#fffbeb", mapaUrlIkon, 6)}
       </div>
     </div>
   `;
 }
 
-function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kolorNagl, kolorWierszaAlt, mapaUrlIkon, limitWpisow) {
+function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kolorAkcentu, kolorWierszaAlt, mapaUrlIkon, limitWpisow) {
   let html = "";
   let pozostale = [...(dane || [])];
 
@@ -289,21 +283,18 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
     pozostale = pozostale.filter(row => !wierszeDlaPozycji.includes(row));
 
     let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
-    // ZWIĘKSZONO 2x: z 18px na 36px wysokości
-    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 36px; width: auto; vertical-align: middle; margin-right: 8px; border-radius: 2px;" />` : "";
+    // PRZYWRÓCONY PIERWOTNY ROZMIAR (18px)
+    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px;" />` : "";
 
-    let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong style="font-size: 13px;">${pozycja.etykieta}</strong></span>`;
+    let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong>${pozycja.etykieta}</strong></span>`;
     let pelneNaglowkiTabeli = [naglowekPierwszejKolumny, ...pozostaleNaglowki];
-    let oczekiwanaLiczbaKolumn = pelneNaglowkiTabeli.length; // Ściśle 8 kolumn
+    let oczekiwanaLiczbaKolumn = pelneNaglowkiTabeli.length;
 
     let wierszeDoEmaila = wierszeDlaPozycji.map(row => {
       let r = Array.isArray(row) ? [...row] : [];
-      let link = r[r.length - 1]; // Ostatni element to link
-
-      // Bierzemy dane od indeksu 1 (pomijamy indeks 0 'Obszar') aż do przedostatniego
+      let link = r[r.length - 1];
       let srodek = r.slice(1, r.length - 1);
       
-      // Musimy wypełnić dokładnie (oczekiwanaLiczbaKolumn - 1) miejsc przed dodaniem linku
       let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 1;
       while (srodek.length < docelowaLiczbaPrzedLinkiem) {
         srodek.push("—");
@@ -312,15 +303,15 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
         srodek = srodek.slice(0, docelowaLiczbaPrzedLinkiem);
       }
 
-      srodek.push(link); // Link trafia dokładnie do ostatniej kolumny (indeks 7)
+      srodek.push(link);
       return srodek;
     });
 
     html += `
-      <div style="margin-top: 14px; margin-bottom: 18px;">
+      <div style="margin-top: 10px; margin-bottom: 14px;">
         ${wierszeDoEmaila.length > 0 
-          ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), pelneNaglowkiTabeli, kolorNagl, kolorWierszaAlt)
-          : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 4px 0 8px 8px;">${imgTag}<strong>${pozycja.etykieta}</strong>: Brak nowych wpisów w tym okresie.</p>`
+          ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), pelneNaglowkiTabeli, kolorAkcentu, kolorWierszaAlt)
+          : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 4px 0 8px 6px;">${imgTag}<strong>${pozycja.etykieta}</strong>: Brak nowych wpisów w tym okresie.</p>`
         }
       </div>
     `;
@@ -329,15 +320,17 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
   return html;
 }
 
-function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
+function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
   if (!dane || dane.length === 0) return "";
 
-  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 6px; margin-bottom: 12px; background: #ffffff; border: 1px solid #e2e8f0;">`;
+  // Białe tło tabeli z obramowaniem
+  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden;">`;
   
-  html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
+  // Nagłówek: tło BIAŁE, ciemny tekst, a na górze gruba, profesjonalna kolorowa linia akcentująca
+  html += `<thead><tr style="background-color: #ffffff; color: #0f172a; border-top: 3px solid ${kolorAkcentu}; border-bottom: 2px solid #cbd5e1;">`;
   naglowki.forEach((naglowek, idx) => {
-    let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 140px;" : "";
-    html += `<th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600; ${stylPierwszej}">${naglowek}</th>`;
+    let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 130px;" : "";
+    html += `<th style="border: 1px solid #e2e8f0; padding: 7px 8px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; ${stylPierwszej}">${naglowek}</th>`;
   });
   html += `</tr></thead><tbody>`;
 
@@ -349,14 +342,14 @@ function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
       let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
       
       if (jestOstatniaKolumna) {
-        tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
+        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
       } else if (tekst.startsWith("http://") || tekst.startsWith("https://")) {
-        tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
+        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
       } else if (tekst.length > 220) {
         tekst = tekst.substring(0, 220) + "...";
       }
       
-      html += `<td style="border: 1px solid #cbd5e1; padding: 5px 6px; vertical-align: top; line-height: 1.3;">${tekst}</td>`;
+      html += `<td style="border: 1px solid #e2e8f0; padding: 6px 8px; vertical-align: top; line-height: 1.35; color: #334155;">${tekst}</td>`;
     });
     html += `</tr>`;
   });
@@ -379,7 +372,7 @@ function wyodrebnijCzystyUrl(tekst) {
 function formatujKomorkeZLinkiem(tekst, kolor) {
   let url = wyodrebnijCzystyUrl(tekst);
   if (url) {
-    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block;">Link ↗</a>`;
+    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block;">Link ↗</a>`;
   }
   return "—";
 }
@@ -404,9 +397,9 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
     let unsubscribeLink = webAppUrl ? `${webAppUrl}?action=unsubscribe&email=${encodeURIComponent(emailCzysty)}` : "#";
 
     let emailHtml = `
-      <div style="max-width: 960px; margin: 0 auto; background-color: #ffffff; padding: 12px;">
+      <div style="max-width: 960px; margin: 0 auto; background-color: #ffffff; padding: 16px;">
         ${cialoRaportuHtml}
-        <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center;">
+        <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 12px; font-size: 11px; color: #94a3b8; text-align: center;">
           Raport przygotowany przez DeepSeek AI dla ${emailCzysty}. 
           <a href="${unsubscribeLink}" target="_blank" style="color: #64748b; margin-left: 8px;">Wypisz się z subskrypcji</a>
         </div>
@@ -428,7 +421,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
 }
 
 // ============================================================================
-// KOMUNIKACJA Z DEEPSEEK AI - ZACHOWANIE PEŁNEJ STRUKTURY KOLUMN
+// KOMUNIKACJA Z DEEPSEEK AI
 // ============================================================================
 
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
@@ -440,7 +433,6 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   let strukturaKolumn = "";
 
   if (typRaportu.startsWith("rodziny")) {
-    // 9 kolumn: Obszar, Gdzie, Data / Dzień, Godzina, Tytuł / Wydarzenie, Streszczenie merytoryczne, Dla kogo, Warunki wstępu, Link
     strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"]';
     
     if (typRaportu === "rodziny_trwajace") {
@@ -449,7 +441,6 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'.";
     }
   } else {
-    // 9 kolumn: Obszar, Gdzie, Data, Godzina, Kategoria, Tytuł / Temat, Streszczenie merytoryczne, Dla kogo, Link
     strukturaKolumn = '["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
 
     if (typRaportu === "lokalne_przeszle") {
@@ -791,4 +782,4 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
   } catch (e) {
     return null;
   }
-}
+} 
