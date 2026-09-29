@@ -242,6 +242,10 @@ function wczytajIkonyHerbowZDrive() {
 // GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z DEFINIOWANĄ PALETĄ BARW)
 // ============================================================================
 
+// ============================================================================
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (ZAMIENIONE KOLORY TABELI 1 I 2)
+// ============================================================================
+
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
   mapaUrlIkon = mapaUrlIkon || {};
 
@@ -280,20 +284,20 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
         </div>
       </div>
 
-      <!-- 1. TABELA: WYDARZENIA DLA RODZIN (#C39D5C) -->
-      <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #8e6c31; margin: 0 0 12px 0; border-bottom: 2px solid #C39D5C; padding-bottom: 5px; font-weight: 700;">
-          1. Wydarzenia dla Rodzin
-        </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#C39D5C", "#fdfbf7", mapaUrlIkon, 8)}
-      </div>
-
-      <!-- 2. TABELA: CO SIĘ WYDARZYŁO (#AB6D70) -->
+      <!-- 1. TABELA: WYDARZENIA DLA RODZIN (#AB6D70) -->
       <div style="margin-bottom: 32px;">
         <h3 style="font-size: 15px; color: #7f4448; margin: 0 0 12px 0; border-bottom: 2px solid #AB6D70; padding-bottom: 5px; font-weight: 700;">
+          1. Wydarzenia dla Rodzin
+        </h3>
+        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#AB6D70", "#fcf8f8", mapaUrlIkon, 8)}
+      </div>
+
+      <!-- 2. TABELA: CO SIĘ WYDARZYŁO (#C39D5C) -->
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 15px; color: #8e6c31; margin: 0 0 12px 0; border-bottom: 2px solid #C39D5C; padding-bottom: 5px; font-weight: 700;">
           2. Co się wydarzyło (Minione 7 dni)
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#AB6D70", "#fcf8f8", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#C39D5C", "#fdfbf7", mapaUrlIkon, 6)}
       </div>
 
       <!-- 3. TABELA: CO JEST W PLANACH ? (#264533) -->
