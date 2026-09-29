@@ -1,6 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - WERSJA Z WEKTORAMI SVG Z DYSKU GOOGLE
- * Ścieżka: Automation/Migawka Wydarzeń/Brand/ikony_herby_i_symbole/SVG/
+ * MIGAWKA WYDARZEŃ - NIEZAWODNE WYŚWIETLANIE IKON (JPG RETINA @2X W GMAILU)
  */
 
 function generujRaportWiadomosci() {
@@ -150,8 +149,8 @@ function generujRaportWiadomosci() {
   zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
   zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
 
-  // Wczytanie ikon wektorowych SVG z Google Drive jako Data URI (Base64)
-  let mapaIkonSvg = wczytajIkonySvgZDrive();
+  // Wczytanie ikon JPG w jakości Retina (sz=w160)
+  let mapaUrlIkon = wczytajIkonyHerbowZDrive();
 
   wyslijRaportEmailTabelaryczny(
     sekcja1_Rodziny, 
@@ -159,23 +158,26 @@ function generujRaportWiadomosci() {
     sekcja3_WPlanach, 
     dzisiajStr, 
     odbiorcyEmail, 
-    mapaIkonSvg
+    mapaUrlIkon
   );
 }
 
 // ============================================================================
-// WCZYTYWANIE PLIKÓW SVG Z DYSKU GOOGLE JAKO BASE64 DATA URI
+// POBIERANIE LINKÓW DO PLIKÓW JPG Z DYSKU GOOGLE (RETINA @2X)
 // ============================================================================
 
-function wczytajIkonySvgZDrive() {
+function wczytajIkonyHerbowZDrive() {
   const mapowanieNazw = {
-    "01_herb_krakowa.svg": "01_herb_krakowa.svg",
-    "02_herb_malopolski.svg": "02_herb_malopolski.svg",
-    "03_flaga_polski.svg": "03_flaga_polski.svg",
-    "04_herb_myslenic.svg": "04_herb_myslenic.svg",
-    "05_herb_tarnowa.svg": "05_herb_tarnowa.svg",
-    "06_flaga_ue.svg": "06_flaga_ue.svg",
-    "07_oznaczenie_swiata_globus.svg": "07_oznaczenie_swiata_globus.svg"
+    "01_herb_krakowa.jpg": "01_herb_krakowa.jpg",
+    "02_herb_orzel_blekitny.jpg": "02_herb_orzel_blekitny.jpg",
+    "03_herb_malopolska.jpg": "03_herb_malopolska.jpg",
+    "04_herb_myslenice.jpg": "04_herb_myslenice.jpg",
+    "05_herb_tarnow_1.jpg": "05_herb_tarnow_1.jpg",
+    "06_herb_tarnow_2.jpg": "06_herb_tarnow_2.jpg",
+    "07_flaga_polska_1.jpg": "07_flaga_polska_1.jpg",
+    "08_flaga_unia_europejska_tekst.jpg": "08_flaga_unia_europejska_tekst.jpg",
+    "09_flaga_ue_gwiazdy.jpg": "09_flaga_ue_gwiazdy.jpg",
+    "10_symbol_swiat_globus.jpg": "10_symbol_swiat_globus.jpg"
   };
 
   let urleIkon = {};
@@ -189,29 +191,29 @@ function wczytajIkonySvgZDrive() {
     if (!fBrand.hasNext()) return urleIkon;
     let fIkony = fBrand.next().getFoldersByName("ikony_herby_i_symbole");
     if (!fIkony.hasNext()) return urleIkon;
-    let fSvg = fIkony.next().getFoldersByName("SVG");
-    if (!fSvg.hasNext()) return urleIkon;
-    let folderDocelowy = fSvg.next();
+    let fJpg = fIkony.next().getFoldersByName("JPG");
+    if (!fJpg.hasNext()) return urleIkon;
+    let folderDocelowy = fJpg.next();
 
     for (let plikKlucz in mapowanieNazw) {
       let nazwaPliku = mapowanieNazw[plikKlucz];
       let pliki = folderDocelowy.getFilesByName(nazwaPliku);
       if (pliki.hasNext()) {
         let plik = pliki.next();
-        let svgZawartosc = plik.getBlob().getDataAsString();
-        let base64Svg = Utilities.base64Encode(svgZawartosc, Utilities.Charset.UTF_8);
-        urleIkon[plikKlucz] = "data:image/svg+xml;base64," + base64Svg;
+        plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        // sz=w160 serwuje ostry obraz w jakości Retina przy wyświetlaniu na 18px
+        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w160";
       }
     }
   } catch (e) {
-    Logger.log("Błąd odczytu wektorów SVG: " + e.message);
+    Logger.log("Błąd odczytu ikon JPG: " + e.message);
   }
 
   return urleIkon;
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z WEKTORAMI SVG)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (BIAŁE TŁO + AKCENT LINII)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
@@ -220,19 +222,18 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
   const resztaKolumnOgolne = ["Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
-  // Dokładne nazwy plików SVG z Twojego folderu
   const konfiguracjaRodziny = [
-    { nazwaPliku: "01_herb_krakowa.svg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
-    { nazwaPliku: "04_herb_myslenic.svg", etykieta: "Myślenice", filtr: ["myślenic", "myslenic"] },
-    { nazwaPliku: "05_herb_tarnowa.svg", etykieta: "Tarnów", filtr: ["tarnów", "tarnow"] }
+    { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
+    { nazwaPliku: "04_herb_myslenice.jpg", etykieta: "Myślenice", filtr: ["myślenic", "myslenic"] },
+    { nazwaPliku: "05_herb_tarnow_1.jpg", etykieta: "Tarnów", filtr: ["tarnów", "tarnow"] }
   ];
 
   const konfiguracjaOgolna = [
-    { nazwaPliku: "01_herb_krakowa.svg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
-    { nazwaPliku: "02_herb_malopolski.svg", etykieta: "Małopolska", filtr: ["małopolsk", "malopolsk"] },
-    { nazwaPliku: "03_flaga_polski.svg", etykieta: "Polska", filtr: ["polska", "kraj", "rpp"] },
-    { nazwaPliku: "06_flaga_ue.svg", etykieta: "Unia Europejska", filtr: ["unia", "ue", "europejsk", "ebc", "bruksela"] },
-    { nazwaPliku: "07_oznaczenie_swiata_globus.svg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
+    { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
+    { nazwaPliku: "03_herb_malopolska.jpg", etykieta: "Małopolska", filtr: ["małopolsk", "malopolsk"] },
+    { nazwaPliku: "07_flaga_polska_1.jpg", etykieta: "Polska", filtr: ["polska", "kraj", "rpp"] },
+    { nazwaPliku: "09_flaga_ue_gwiazdy.jpg", etykieta: "Unia Europejska", filtr: ["unia", "ue", "europejsk", "ebc", "bruksela"] },
+    { nazwaPliku: "10_symbol_swiat_globus.jpg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
   ];
 
   return `
@@ -284,7 +285,7 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
     pozostale = pozostale.filter(row => !wierszeDlaPozycji.includes(row));
 
     let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
-    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px;" />` : "";
+    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="${pozycja.etykieta}" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px; border-radius: 2px;" />` : "";
 
     let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong>${pozycja.etykieta}</strong></span>`;
     let pelneNaglowkiTabeli = [naglowekPierwszejKolumny, ...pozostaleNaglowki];
@@ -780,4 +781,4 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
   } catch (e) {
     return null;
   }
-} 
+}
