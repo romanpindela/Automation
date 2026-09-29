@@ -1,7 +1,10 @@
 /**
  * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
- * Analizuje źródła w 3 rundach, zachowuje bezpośrednie linki do wydarzeń
- * i zapisuje dane w 3 zakładkach oraz wysyła tabelaryczny raport (Email + PDF).
+ * - 3 rundy analizy czasowej dla każdego źródła
+ * - Twarda weryfikacja poprawności i aktualności dat po stronie kodu JS
+ * - Ekstrakcja dokładnych linków źródłowych do konkretnych wydarzeń
+ * - Zapis do 3 zakładek w Arkuszu Google
+ * - Identyczna forma tabelaryczna w e-mailu oraz w załączniku PDF
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -48,7 +51,6 @@ function generujRaportWiadomosci() {
     odpowiedzi.forEach((resp, index) => {
       let url = unikalneUrle[index];
       if (resp.getResponseCode() === 200) {
-        // Zachowujemy linki href, aby model widział źródłowe adresy konkretnych artykułów
         let tekstZLinkami = wyczyscHtmlZZachowaniemLinkow(resp.getContentText(), url);
         tresciStron[url] = tekstZLinkami.length > 5000 ? tekstZLinkami.substring(0, 5000) : tekstZLinkami;
       } else {
@@ -67,45 +69,80 @@ function generujRaportWiadomosci() {
   let globalnePrzyszle = [];
 
   // ==========================================
-  // ŹRÓDŁA LOKALNE - 3 RUNDY ANALIZY
+  // ŹRÓDŁA LOKALNE - 3 RUNDY Z TWARDĄ WERYFIKACJĄ
   // ==========================================
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      // Runda 1: Przeszłe (w tle)
+      // Runda 1: Przeszłe (analizowane w tle)
       zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
 
       // Runda 2: Trwające
       let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_trwajace", filtrProfilu);
-      if (r2) lokalneTrwajace = lokalneTrwajace.concat(r2.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      if (r2) {
+        let r2Valid = r2.filter(row => {
+          let str = row.join(" ").toUpperCase();
+          if (str.includes("ODRZUCONE")) return false;
+          return czyDataWMiasteczkuCzasowym(row[1], "trwajace", dzisiaj, przed7Dniami, za7Dni);
+        });
+        lokalneTrwajace = lokalneTrwajace.concat(r2Valid);
+      }
 
-      // Runda 3: Przyszłe
+      // Runda 3: Przyszłe (nadchodzący tydzień)
       let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
-      if (r3) lokalnePrzyszle = lokalnePrzyszle.concat(r3.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      if (r3) {
+        let r3Valid = r3.filter(row => {
+          let str = row.join(" ").toUpperCase();
+          if (str.includes("ODRZUCONE")) return false;
+          return czyDataWMiasteczkuCzasowym(row[1], "przyszle", dzisiaj, przed7Dniami, za7Dni);
+        });
+        lokalnePrzyszle = lokalnePrzyszle.concat(r3Valid);
+      }
     }
   });
 
   // ==========================================
-  // ŹRÓDŁA GLOBALNE - 3 RUNDY ANALIZY
+  // ŹRÓDŁA GLOBALNE - 3 RUNDY Z TWARDĄ WERYFIKACJĄ
   // ==========================================
   SOURCES_GLOBALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      // Runda 1: Przeszłe
+      // Runda 1: Świat - Co się wydarzyło (przeszłe)
       let r1 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
-      if (r1) globalnePrzeszle = globalnePrzeszle.concat(r1.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      if (r1) {
+        let r1Valid = r1.filter(row => {
+          let str = row.join(" ").toUpperCase();
+          if (str.includes("ODRZUCONE")) return false;
+          return czyDataWMiasteczkuCzasowym(row[0], "przeszle", dzisiaj, przed7Dniami, za7Dni);
+        });
+        globalnePrzeszle = globalnePrzeszle.concat(r1Valid);
+      }
 
-      // Runda 2: Trwające
+      // Runda 2: Świat - Trwające
       let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_trwajace", filtrProfilu);
-      if (r2) globalneTrwajace = globalneTrwajace.concat(r2.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      if (r2) {
+        let r2Valid = r2.filter(row => {
+          let str = row.join(" ").toUpperCase();
+          if (str.includes("ODRZUCONE")) return false;
+          return czyDataWMiasteczkuCzasowym(row[0], "trwajace", dzisiaj, przed7Dniami, za7Dni);
+        });
+        globalneTrwajace = globalneTrwajace.concat(r2Valid);
+      }
 
-      // Runda 3: Przyszłe
+      // Runda 3: Świat - Co się wydarzy (przyszłe)
       let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
-      if (r3) globalnePrzyszle = globalnePrzyszle.concat(r3.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      if (r3) {
+        let r3Valid = r3.filter(row => {
+          let str = row.join(" ").toUpperCase();
+          if (str.includes("ODRZUCONE")) return false;
+          return czyDataWMiasteczkuCzasowym(row[0], "przyszle", dzisiaj, przed7Dniami, za7Dni);
+        });
+        globalnePrzyszle = globalnePrzyszle.concat(r3Valid);
+      }
     }
   });
 
-  // Łączenie w 3 dedykowane tabele
+  // Agregacja wyników do 3 docelowych zestawień
   let tabela1Lokalne = [...lokalneTrwajace, ...lokalnePrzyszle];
   let tabela2GlobalnePrzeszle = globalnePrzeszle;
   let tabela3GlobalnePrzyszle = [...globalneTrwajace, ...globalnePrzyszle];
@@ -127,7 +164,7 @@ function generujRaportWiadomosci() {
 }
 
 /**
- * Zapytanie do modelu DeepSeek z naciskiem na ekstrakcję bezpośredniego linku
+ * Odpytanie modelu DeepSeek z naciskiem na ekstrakcję linku i zakaz halucynacji dat
  */
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
@@ -145,7 +182,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       instrukcjaZadaniowa = "RUNDA 1: Zakończone w ostatnich 7 dniach kluczowe inwestycje lub uchwały w Krakowie.";
     } else if (typRaportu === "lokalne_trwajace") {
       instrukcjaZadaniowa = "RUNDA 2 (KRAKÓW - TRWAJĄCE OBECNIE / DZISIAJ):\n" +
-        "- Wyszukaj trwające wystawy, jarmarki, ekspozycje i festiwale idealne dla rodziny z dziećmi (dziewczynki 5-7 lat) oraz trwające duże utrudnienia drogowe.\n" +
+        "- Wyszukaj trwające wystawy, jarmarki, ekspozycje i festiwale idealne dla rodziny z dziećmi (dziewczynki 5-7 lat) oraz trwające utrudnienia drogowe.\n" +
         "- Odrzuć: kursy dla dorosłych, spotkania emerytów, kronikę kryminalną.";
     } else if (typRaportu === "lokalne_przyszle") {
       instrukcjaZadaniowa = "RUNDA 3 (KRAKÓW - NADCHODZĄCE 7 DNI):\n" +
@@ -168,15 +205,19 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   }
 
   let systemPrompt = 
-    "Jesteś precyzyjnym analitykiem danych.\n\n" +
+    "Jesteś precyzyjnym analitykiem danych i kuratorem informacji.\n\n" +
     kontekstCzasowy + "\n\n" +
     filtrProfilu + "\n\n" +
     instrukcjaZadaniowa + "\n\n" +
+    "ŻELAZNE ZASADY KALENDARZOWE I WERYFIKACJI DAT:\n" +
+    "1. Format daty MUSI wynosić YYYY-MM-DD (np. 2026-10-06) lub 'Trwa'.\n" +
+    "2. KATEGORYCZNY ZAKAZ ZGADYWANIA LUB ZMIENIANIA MIESIĄCA: Zwróć szczególną uwagę na kontekst tekstu. Jeśli wydarzenie odbyło się w innym miesiącu (np. we wrześniu), pod żadnym pozorem nie wpisuj przyszłego miesiąca (np. października)! Jeśli data nie wpisuje się w zadany okres — pomiń rekord całkowicie.\n" +
+    "3. Weryfikuj dzień tygodnia: Upewnij się, że podana data i dzień tygodnia są matematycznie spójne z kalendarzem na rok 2026.\n\n" +
     "BEZWZGLĘDNY NAKAZ DOTYCZĄCY LINKÓW:\n" +
-    "Dla każdego wydarzenia lub wiadomości MUSISZ odnaleźć i podać bezpośredni link URL (np. https://strona.pl/wydarzenie-123), na podstawie którego wyłapałeś daną informację z dostarczonego tekstu.\n" +
-    "W ostatniej kolumnie ('Link do wydarzenia' / 'Link do wiadomości') wpisz:\n" +
+    "Dla każdego wydarzenia lub wiadomości MUSISZ odnaleźć i podać bezpośredni link URL (np. https://strona.pl/wydarzenie-123), na podstawie którego wyłapałeś daną informację z tekstu.\n" +
+    "W ostatniej kolumnie wpisz:\n" +
     "'Nazwa Źródła — https://dokladny-adres-url-artykulu'\n" +
-    "Jeśli w tekście nie ma bezpośredniego linku do artykułu, użyj adresu głównego źródła: '" + source.url + "'.\n\n" +
+    "Jeśli w tekście nie ma bezpośredniego linku do artykułu, użyj adresu bazowego: '" + source.url + "'.\n\n" +
     "Przeanalizuj treść ze źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
     "Zwróć WYŁĄCZNIE poprawny JSON: {\"dane\": [[...], [...]]}. Wiersze muszą zawierać: " + strukturaKolumn + ". Jeśli brak wartościowych wpisów, zwróć: {\"dane\": []}.";
 
@@ -184,7 +225,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij trafione rekordy wraz z bezpośrednimi linkami w formacie JSON." }
+      { role: "user", content: "Wyodrębnij trafione rekordy wraz ze zweryfikowanymi datami i bezpośrednimi linkami w formacie JSON." }
     ],
     response_format: { type: "json_object" },
     temperature: 0.0
@@ -209,8 +250,49 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
 }
 
 /**
- * Zamienia HTML na tekst, ale ZACHOWUJE linki w formacie [Tekst](URL) lub Tekst (URL),
- * dzięki czemu model AI widzi bezpośrednie linki do każdego artykułu.
+ * Sprawdza programistycznie, czy wyekstrahowana data mieści się w określonym oknie czasowym
+ */
+function czyDataWMiasteczkuCzasowym(dataStr, typOkna, dzisiaj, przed7Dni, za7Dni) {
+  if (!dataStr) return false;
+  let str = String(dataStr).trim();
+
+  if (str.toLowerCase().includes("trwa") || str.toLowerCase().includes("dzisiaj")) {
+    return (typOkna === "trwajace" || typOkna === "przyszle");
+  }
+
+  let match = str.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (!match) {
+    let matchPL = str.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/);
+    if (matchPL) {
+      match = [null, matchPL[3], matchPL[2], matchPL[1]];
+    } else {
+      return false;
+    }
+  }
+
+  let rok = parseInt(match[1], 10);
+  let miesiac = parseInt(match[2], 10) - 1;
+  let dzien = parseInt(match[3], 10);
+
+  let dataWydarzenia = new Date(rok, miesiac, dzien);
+  dataWydarzenia.setHours(0, 0, 0, 0);
+
+  let d0 = new Date(dzisiaj); d0.setHours(0, 0, 0, 0);
+  let dMinus7 = new Date(przed7Dni); dMinus7.setHours(0, 0, 0, 0);
+  let dPlus7 = new Date(za7Dni); dPlus7.setHours(23, 59, 59, 999);
+
+  if (typOkna === "przeszle") {
+    return dataWydarzenia >= dMinus7 && dataWydarzenia <= d0;
+  } else if (typOkna === "trwajace") {
+    return dataWydarzenia.getTime() === d0.getTime();
+  } else if (typOkna === "przyszle") {
+    return dataWydarzenia >= d0 && dataWydarzenia <= dPlus7;
+  }
+  return false;
+}
+
+/**
+ * Zamienia HTML na tekst z zachowaniem linków w tagach <a>
  */
 function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
   let domain = "";
@@ -219,16 +301,16 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
     if (match) domain = match[1];
   } catch (e) {}
 
-  // Usunięcie skryptów i stylów
   let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
   text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
 
-  // Przekształcenie tagów <a> w format czytelny dla AI: Tekst [URL: https://...]
+  // Zamiana znaczników blokowych na entery, aby zachować powiązanie daty z tytułem
+  text = text.replace(/<\/(div|p|li|article|section|tr|h\d)>/gi, "\n");
+
   text = text.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, function(match, href, anchorText) {
     let czystyAnchor = anchorText.replace(/<[^>]+>/g, "").trim();
     if (!czystyAnchor || czystyAnchor.length < 3) return "";
     
-    // Obsługa linków względnych (/wydarzenia/...)
     let pelnyUrl = href;
     if (href.startsWith("/")) {
       pelnyUrl = domain + href;
@@ -236,15 +318,12 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
       pelnyUrl = baseUrl.replace(/\/?$/, "/") + href;
     }
     
-    // Ignoruj kotwice i puste linki
     if (pelnyUrl.includes("javascript:") || pelnyUrl.includes("#")) return czystyAnchor;
-    
     return czystyAnchor + " [Link: " + pelnyUrl + "] ";
   });
 
-  // Usunięcie pozostałych tagów HTML
   text = text.replace(/<[^>]+>/g, " ");
-  return text.replace(/\s+/g, " ").trim();
+  return text.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
 }
 
 /**
@@ -289,7 +368,7 @@ function generujCialoRaportuTabelarycznego(lokalne, globalnePrzeszle, globalnePr
 }
 
 /**
- * Buduje tabelę z responsywnym kodem HTML i bezpośrednimi odnośnikami do wydarzeń
+ * Buduje tabelę HTML z linkami źródłowymi
  */
 function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, stylowanieDodatkowe, dlaPdf) {
   if (!dane || dane.length === 0) {
@@ -311,7 +390,6 @@ function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, st
       let tekst = String(komorka || "—").trim();
       let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
       
-      // Specjalne formatowanie linku w ostatniej kolumnie
       if (jestOstatniaKolumna || tekst.includes("http")) {
         tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny, dlaPdf);
       }
@@ -326,7 +404,7 @@ function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, st
 }
 
 /**
- * Formatowanie linku z wyciągnięciem adresu URL i czytelną etykietą
+ * Formatuje link do czytelnego przycisku lub hiperłącza
  */
 function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
   if (!tekst || tekst === "—") return "—";
@@ -336,7 +414,6 @@ function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
     let url = matchUrl[0];
     let etykieta = "Przejdź do źródła ↗";
     
-    // Jeśli model podał nazwę portalu przed separatorem "—"
     if (tekst.includes("—")) {
       etykieta = tekst.split("—")[0].trim();
     } else if (tekst.includes("[")) {
