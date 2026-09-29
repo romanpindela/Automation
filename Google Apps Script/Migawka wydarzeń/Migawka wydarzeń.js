@@ -1,11 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z IDENTYFIKACJĄ WIZUALNĄ LOGO MW V2
- * 
- * - Logotyp "Logo MW v2.jpg" (wysokość 64px) w nagłówku wiadomości
- * - Brak emotikony tarczy ze strzałą
- * - Spójna paleta barw tabel dopasowana do marki (zieleń, granat, złoto)
- * - Bezpieczne kodowanie i naprawa linków URL
- * - Herby i flagi Retina @2x w nagłówkach kolumn
+ * MIGAWKA WYDARZEŃ - INDYWIDUALNA PALETA KOLORÓW DLA KAŻDEJ SEKCJI I NAGŁÓWKA
  */
 
 function generujRaportWiadomosci() {
@@ -245,7 +239,7 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (KOLORYSTYKA ZHARMONIZOWANA Z LOGO MW)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z DEFINIOWANĄ PALETĄ BARW)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
@@ -273,8 +267,8 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 960px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
       
-      <!-- NAGŁÓWEK GŁÓWNY Z NOWYM LOGO O WYSOKOŚCI 64px -->
-      <div style="border-bottom: 2px solid #e2e8f0; border-top: 3px solid #d97706; padding-top: 10px; padding-bottom: 12px; margin-bottom: 24px; display: flex; align-items: center;">
+      <!-- NAGŁÓWEK GŁÓWNY (LINIA NAD NAGŁÓWKIEM: #AB6F71) -->
+      <div style="border-top: 3px solid #AB6F71; border-bottom: 2px solid #e2e8f0; padding-top: 12px; padding-bottom: 12px; margin-bottom: 24px; display: flex; align-items: center;">
         ${logoTag}
         <div>
           <h2 style="font-size: 22px; color: #0f172a; margin: 0; padding: 0; font-weight: 700; line-height: 1.2; letter-spacing: -0.3px;">
@@ -286,28 +280,28 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
         </div>
       </div>
 
-      <!-- 1. WYDARZENIA DLA RODZIN (BUTELKOWA ZIELEŃ) -->
+      <!-- 1. TABELA: WYDARZENIA DLA RODZIN (#C39D5C) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #065f46; margin: 0 0 12px 0; border-bottom: 2px solid #059669; padding-bottom: 5px; font-weight: 700;">
+        <h3 style="font-size: 15px; color: #8e6c31; margin: 0 0 12px 0; border-bottom: 2px solid #C39D5C; padding-bottom: 5px; font-weight: 700;">
           1. Wydarzenia dla Rodzin
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#059669", "#f0fdf4", mapaUrlIkon, 8)}
+        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#C39D5C", "#fdfbf7", mapaUrlIkon, 8)}
       </div>
 
-      <!-- 2. CO SIĘ WYDARZYŁO (GŁĘBOKI GRANAT BRANDOWY) -->
+      <!-- 2. TABELA: CO SIĘ WYDARZYŁO (#AB6D70) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #2563eb; padding-bottom: 5px; font-weight: 700;">
+        <h3 style="font-size: 15px; color: #7f4448; margin: 0 0 12px 0; border-bottom: 2px solid #AB6D70; padding-bottom: 5px; font-weight: 700;">
           2. Co się wydarzyło (Minione 7 dni)
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#1e3a8a", "#f8fafc", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#AB6D70", "#fcf8f8", mapaUrlIkon, 6)}
       </div>
 
-      <!-- 3. CO JEST W PLANACH ? (SZLACHETNE ZŁOTO / BURSZTYN) -->
+      <!-- 3. TABELA: CO JEST W PLANACH ? (#264533) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #92400e; margin: 0 0 12px 0; border-bottom: 2px solid #d97706; padding-bottom: 5px; font-weight: 700;">
+        <h3 style="font-size: 15px; color: #1b3325; margin: 0 0 12px 0; border-bottom: 2px solid #264533; padding-bottom: 5px; font-weight: 700;">
           3. Co jest w planach ?
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#d97706", "#fffbeb", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#264533", "#f5f8f6", mapaUrlIkon, 6)}
       </div>
     </div>
   `;
@@ -367,6 +361,7 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
 
   let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">`;
   
+  // Górna krawędź nagłówka z 3px akcentem dedykowanym danej tabeli
   html += `<thead><tr style="background-color: #ffffff; color: #0f172a; border-top: 3px solid ${kolorAkcentu}; border-bottom: 2px solid #cbd5e1;">`;
   naglowki.forEach((naglowek, idx) => {
     let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 130px;" : "";
@@ -382,9 +377,9 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
       let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
       
       if (jestOstatniaKolumna) {
-        tekst = formatujKomorkeZLinkiem(tekst, "#0f172a");
+        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
       } else if (tekst.startsWith("http://") || tekst.startsWith("https://")) {
-        tekst = formatujKomorkeZLinkiem(tekst, "#0f172a");
+        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
       } else if (tekst.length > 220) {
         tekst = tekst.substring(0, 220) + "...";
       }
