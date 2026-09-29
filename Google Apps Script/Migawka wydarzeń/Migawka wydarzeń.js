@@ -1,5 +1,11 @@
 /**
- * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z LOGO Z DYSKU GOOGLE (BEZ IKONY TARCZY ZE STRZAŁĄ)
+ * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z IDENTYFIKACJĄ WIZUALNĄ LOGO MW V2
+ * 
+ * - Logotyp "Logo MW v2.jpg" (wysokość 64px) w nagłówku wiadomości
+ * - Brak emotikony tarczy ze strzałą
+ * - Spójna paleta barw tabel dopasowana do marki (zieleń, granat, złoto)
+ * - Bezpieczne kodowanie i naprawa linków URL
+ * - Herby i flagi Retina @2x w nagłówkach kolumn
  */
 
 function generujRaportWiadomosci() {
@@ -164,7 +170,7 @@ function generujRaportWiadomosci() {
 }
 
 // ============================================================================
-// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/LOGO.jpg)
+// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/Logo MW v2.jpg)
 // ============================================================================
 
 function wczytajLogoZDrive() {
@@ -177,14 +183,14 @@ function wczytajLogoZDrive() {
     if (!fBrand.hasNext()) return "";
     let folderBrand = fBrand.next();
 
-    let pliki = folderBrand.getFilesByName("LOGO.jpg");
+    let pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
     if (pliki.hasNext()) {
       let plik = pliki.next();
       plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w400";
+      return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w500";
     }
   } catch (e) {
-    Logger.log("Błąd odczytu LOGO.jpg: " + e.message);
+    Logger.log("Błąd odczytu Logo MW v2.jpg: " + e.message);
   }
   return "";
 }
@@ -239,7 +245,7 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z LOGO, BEZ TARCZY ZE STRZAŁĄ)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (KOLORYSTYKA ZHARMONIZOWANA Z LOGO MW)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
@@ -262,43 +268,43 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
     { nazwaPliku: "10_symbol_swiat_globus.jpg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
   ];
 
-  let logoTag = urlLogo ? `<img src="${urlLogo}" alt="Logo" style="height: 38px; width: auto; vertical-align: middle; margin-right: 12px; border-radius: 4px;" />` : "";
+  let logoTag = urlLogo ? `<img src="${urlLogo}" alt="Logo" style="height: 64px; width: auto; vertical-align: middle; margin-right: 16px; border-radius: 6px; display: block;" />` : "";
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 960px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
       
-      <!-- NAGŁÓWEK GŁÓWNY Z LOGO -->
-      <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center;">
+      <!-- NAGŁÓWEK GŁÓWNY Z NOWYM LOGO O WYSOKOŚCI 64px -->
+      <div style="border-bottom: 2px solid #e2e8f0; border-top: 3px solid #d97706; padding-top: 10px; padding-bottom: 12px; margin-bottom: 24px; display: flex; align-items: center;">
         ${logoTag}
         <div>
-          <h2 style="font-size: 20px; color: #0f172a; margin: 0; padding: 0; font-weight: 700;">
-            Migawka Wydarzeń (${dzisiajStr})
+          <h2 style="font-size: 22px; color: #0f172a; margin: 0; padding: 0; font-weight: 700; line-height: 1.2; letter-spacing: -0.3px;">
+            Migawka Wydarzeń
           </h2>
-          <p style="font-size: 12px; color: #64748b; margin: 2px 0 0 0;">
-            Cotygodniowy raport wydarzeń i informacji.
+          <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">
+            Wydanie z dnia: ${dzisiajStr} &bull; Cotygodniowy raport wydarzeń i informacji
           </p>
         </div>
       </div>
 
-      <!-- 1. WYDARZENIA DLA RODZIN -->
+      <!-- 1. WYDARZENIA DLA RODZIN (BUTELKOWA ZIELEŃ) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 16px; color: #065f46; margin: 0 0 14px 0; border-bottom: 2px solid #059669; padding-bottom: 5px;">
+        <h3 style="font-size: 15px; color: #065f46; margin: 0 0 12px 0; border-bottom: 2px solid #059669; padding-bottom: 5px; font-weight: 700;">
           1. Wydarzenia dla Rodzin
         </h3>
         ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#059669", "#f0fdf4", mapaUrlIkon, 8)}
       </div>
 
-      <!-- 2. CO SIĘ WYDARZYŁO (MINIONE 7 DNI) -->
+      <!-- 2. CO SIĘ WYDARZYŁO (GŁĘBOKI GRANAT BRANDOWY) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 16px; color: #1e3a8a; margin: 0 0 14px 0; border-bottom: 2px solid #2563eb; padding-bottom: 5px;">
+        <h3 style="font-size: 15px; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #2563eb; padding-bottom: 5px; font-weight: 700;">
           2. Co się wydarzyło (Minione 7 dni)
         </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#2563eb", "#f8fafc", mapaUrlIkon, 6)}
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#1e3a8a", "#f8fafc", mapaUrlIkon, 6)}
       </div>
 
-      <!-- 3. CO JEST W PLANACH ? -->
+      <!-- 3. CO JEST W PLANACH ? (SZLACHETNE ZŁOTO / BURSZTYN) -->
       <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 16px; color: #9a3412; margin: 0 0 14px 0; border-bottom: 2px solid #d97706; padding-bottom: 5px;">
+        <h3 style="font-size: 15px; color: #92400e; margin: 0 0 12px 0; border-bottom: 2px solid #d97706; padding-bottom: 5px; font-weight: 700;">
           3. Co jest w planach ?
         </h3>
         ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#d97706", "#fffbeb", mapaUrlIkon, 6)}
@@ -359,7 +365,7 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
 function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
   if (!dane || dane.length === 0) return "";
 
-  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden;">`;
+  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">`;
   
   html += `<thead><tr style="background-color: #ffffff; color: #0f172a; border-top: 3px solid ${kolorAkcentu}; border-bottom: 2px solid #cbd5e1;">`;
   naglowki.forEach((naglowek, idx) => {
@@ -376,9 +382,9 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
       let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
       
       if (jestOstatniaKolumna) {
-        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
+        tekst = formatujKomorkeZLinkiem(tekst, "#0f172a");
       } else if (tekst.startsWith("http://") || tekst.startsWith("https://")) {
-        tekst = formatujKomorkeZLinkiem(tekst, kolorAkcentu);
+        tekst = formatujKomorkeZLinkiem(tekst, "#0f172a");
       } else if (tekst.length > 220) {
         tekst = tekst.substring(0, 220) + "...";
       }
@@ -423,7 +429,6 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
   let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
   if (odbiorcy.length === 0) return;
 
-  // Temat wiadomości BEZ emotikony tarczy ze strzałą
   let temat = "Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
 
   let webAppUrl = "";
