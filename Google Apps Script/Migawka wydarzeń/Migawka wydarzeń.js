@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - POPRAWIONA OBSŁUGA LINKÓW I STRUKTURA Z HERBAMI
+ * MIGAWKA WYDARZEŃ - NAPRAWIONE KOLUMNY ORAZ 2X WIĘKSZE LOGO HERBÓW/FLAG
  */
 
 function generujRaportWiadomosci() {
@@ -142,9 +142,9 @@ function generujRaportWiadomosci() {
   sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
   sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
-  // Nagłówki bazy w Arkuszu Google
+  // Zapis bazy w Arkuszu Google
   let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   zapiszDoArkusza(ss, "1. Wydarzenia dla Rodzin", sekcja1_Rodziny, naglowkiArkuszRodziny);
   zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
@@ -164,7 +164,7 @@ function generujRaportWiadomosci() {
 }
 
 // ============================================================================
-// POBIERANIE LINKÓW DO HERBÓW / IKON Z DYSKU GOOGLE
+// POBIERANIE LINKÓW DO HERBÓW (W ROZDZIELCZOŚCI DO 120px)
 // ============================================================================
 
 function wczytajIkonyHerbowZDrive() {
@@ -202,7 +202,8 @@ function wczytajIkonyHerbowZDrive() {
       if (pliki.hasNext()) {
         let plik = pliki.next();
         plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w60";
+        // Pobieramy miniaturę w 120px dla idealnej ostrości przy 2x większym rozmiarze
+        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w120";
       }
     }
   } catch (e) {
@@ -213,14 +214,17 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z HERBEM W NAGŁÓWKU KOLUMNY)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (POPRAWIONE KOLUMNY I WIĘKSZE LOGO)
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
   mapaUrlIkon = mapaUrlIkon || {};
 
+  // Sekcja 1 ma 7 kolumn po odcięciu kolumny Obszar
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  const resztaKolumnOgolne = ["Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  
+  // Sekcje 2 i 3 mają 7 kolumn po odcięciu kolumny Obszar
+  const resztaKolumnOgolne = ["Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   const konfiguracjaRodziny = [
     { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
@@ -237,7 +241,7 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
   ];
 
   return `
-    <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 860px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
+    <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 940px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
       <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 4px; border-bottom: 2px solid #cbd5e1; padding-bottom: 6px;">
         🎯 Migawka Wydarzeń (${dzisiajStr})
       </h2>
@@ -285,28 +289,35 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
     pozostale = pozostale.filter(row => !wierszeDlaPozycji.includes(row));
 
     let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
-    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 18px; width: auto; vertical-align: middle; margin-right: 6px;" />` : "";
+    // ZWIĘKSZONO 2x: z 18px na 36px wysokości
+    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="" style="height: 36px; width: auto; vertical-align: middle; margin-right: 8px; border-radius: 2px;" />` : "";
 
-    let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong>${pozycja.etykieta}</strong></span>`;
+    let naglowekPierwszejKolumny = `<span style="display: inline-flex; align-items: center;">${imgTag}<strong style="font-size: 13px;">${pozycja.etykieta}</strong></span>`;
     let pelneNaglowkiTabeli = [naglowekPierwszejKolumny, ...pozostaleNaglowki];
+    let oczekiwanaLiczbaKolumn = pelneNaglowkiTabeli.length; // Ściśle 8 kolumn
 
-    // Odrzucamy kolumnę 0 (Obszar) i gwarantujemy, że ostatnią kolumną jest zawsze Link
     let wierszeDoEmaila = wierszeDlaPozycji.map(row => {
-      let link = row[row.length - 1];
-      let reszta = row.slice(1, row.length - 1);
-      let docelowaLiczbaSrodka = pelneNaglowkiTabeli.length - 2; // bez pierwszej i bez linku
-      while (reszta.length < docelowaLiczbaSrodka) {
-        reszta.push("");
+      let r = Array.isArray(row) ? [...row] : [];
+      let link = r[r.length - 1]; // Ostatni element to link
+
+      // Bierzemy dane od indeksu 1 (pomijamy indeks 0 'Obszar') aż do przedostatniego
+      let srodek = r.slice(1, r.length - 1);
+      
+      // Musimy wypełnić dokładnie (oczekiwanaLiczbaKolumn - 1) miejsc przed dodaniem linku
+      let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 1;
+      while (srodek.length < docelowaLiczbaPrzedLinkiem) {
+        srodek.push("—");
       }
-      if (reszta.length > docelowaLiczbaSrodka) {
-        reszta = reszta.slice(0, docelowaLiczbaSrodka);
+      if (srodek.length > docelowaLiczbaPrzedLinkiem) {
+        srodek = srodek.slice(0, docelowaLiczbaPrzedLinkiem);
       }
-      reszta.push(link);
-      return reszta;
+
+      srodek.push(link); // Link trafia dokładnie do ostatniej kolumny (indeks 7)
+      return srodek;
     });
 
     html += `
-      <div style="margin-top: 10px; margin-bottom: 14px;">
+      <div style="margin-top: 14px; margin-bottom: 18px;">
         ${wierszeDoEmaila.length > 0 
           ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), pelneNaglowkiTabeli, kolorNagl, kolorWierszaAlt)
           : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 4px 0 8px 8px;">${imgTag}<strong>${pozycja.etykieta}</strong>: Brak nowych wpisów w tym okresie.</p>`
@@ -321,11 +332,11 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
 function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
   if (!dane || dane.length === 0) return "";
 
-  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0;">`;
+  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 6px; margin-bottom: 12px; background: #ffffff; border: 1px solid #e2e8f0;">`;
   
   html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
   naglowki.forEach((naglowek, idx) => {
-    let stylPierwszej = (idx === 0) ? "white-space: nowrap; font-size: 12px;" : "";
+    let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 140px;" : "";
     html += `<th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600; ${stylPierwszej}">${naglowek}</th>`;
   });
   html += `</tr></thead><tbody>`;
@@ -361,7 +372,6 @@ function wyodrebnijCzystyUrl(tekst) {
   let match = str.match(/https?:\/\/[^\s"'<>\)\]]+/i);
   if (!match) return "";
   let url = match[0];
-  // Usunięcie znaków interpunkcyjnych i zamykających nawiasów z końca adresu
   url = url.replace(/[.,;:\)\]>]+$/, "").trim();
   return url;
 }
@@ -394,7 +404,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
     let unsubscribeLink = webAppUrl ? `${webAppUrl}?action=unsubscribe&email=${encodeURIComponent(emailCzysty)}` : "#";
 
     let emailHtml = `
-      <div style="max-width: 880px; margin: 0 auto; background-color: #ffffff; padding: 12px;">
+      <div style="max-width: 960px; margin: 0 auto; background-color: #ffffff; padding: 12px;">
         ${cialoRaportuHtml}
         <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center;">
           Raport przygotowany przez DeepSeek AI dla ${emailCzysty}. 
@@ -418,7 +428,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
 }
 
 // ============================================================================
-// KOMUNIKACJA Z DEEPSEEK AI
+// KOMUNIKACJA Z DEEPSEEK AI - ZACHOWANIE PEŁNEJ STRUKTURY KOLUMN
 // ============================================================================
 
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
@@ -430,6 +440,7 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   let strukturaKolumn = "";
 
   if (typRaportu.startsWith("rodziny")) {
+    // 9 kolumn: Obszar, Gdzie, Data / Dzień, Godzina, Tytuł / Wydarzenie, Streszczenie merytoryczne, Dla kogo, Warunki wstępu, Link
     strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"]';
     
     if (typRaportu === "rodziny_trwajace") {
@@ -438,7 +449,8 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'.";
     }
   } else {
-    strukturaKolumn = '["Obszar", "Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
+    // 9 kolumn: Obszar, Gdzie, Data, Godzina, Kategoria, Tytuł / Temat, Streszczenie merytoryczne, Dla kogo, Link
+    strukturaKolumn = '["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
 
     if (typRaportu === "lokalne_przeszle") {
       instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (LOKALNIE): ważne uchwały, inwestycje, remonty lub wydarzenia. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
@@ -458,11 +470,12 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     instrukcjaZadaniowa + "\n\n" +
     "REGUŁY DOTYCZĄCE KOLUMN:\n" +
     "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
-    "2. 'Gdzie': dokładne, konkretne miejsce wydarzenia (np. 'Teatr Groteska', 'Rynek'). Jeśli dotyczy całego obszaru lub brak punktu, pozostaw to pole puste (\"\").\n" +
+    "2. 'Gdzie': dokładne miejsce (np. 'Teatr Groteska', 'Fort Borek'). Jeśli dotyczy całego obszaru lub brak punktu, wpisz '—'.\n" +
     "3. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
-    "4. W kolumnie 'Link': podaj bezpośredni, pełny adres URL (np. 'https://...'). Nie dodawaj nawiasów ani prefiksów. Jeśli w tekście brak bezpośredniego linku do artykułu, wstaw: '" + source.url + "'.\n\n" +
+    "4. 'Warunki wstępu': wpisz 'Bezpłatne', 'Bilety' lub 'Rejestracja'.\n" +
+    "5. W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
     "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
-    "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu: " + strukturaKolumn + ".";
+    "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu musi ściśle odpowiadać tablicy: " + strukturaKolumn + ".";
 
   const payload = {
     model: "deepseek-chat",
@@ -493,7 +506,6 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     let content = jsonResp.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
     let rows = bezpiecznyParseJson(content);
     
-    // Gwarantowany fallback adresu URL dla każdego wygenerowanego wiersza
     return rows.map(row => {
       if (!Array.isArray(row) || row.length === 0) return row;
       let lastIdx = row.length - 1;
