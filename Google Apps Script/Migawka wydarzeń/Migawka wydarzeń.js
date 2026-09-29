@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - NIEZAWODNE WYŚWIETLANIE IKON (JPG RETINA @2X W GMAILU)
+ * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z POPRAWIONĄ OBSŁUGĄ URL, BIAŁYMI NAGŁÓWKAMI I HERBAMI RETINA
  */
 
 function generujRaportWiadomosci() {
@@ -149,7 +149,6 @@ function generujRaportWiadomosci() {
   zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
   zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
 
-  // Wczytanie ikon JPG w jakości Retina (sz=w160)
   let mapaUrlIkon = wczytajIkonyHerbowZDrive();
 
   wyslijRaportEmailTabelaryczny(
@@ -163,7 +162,7 @@ function generujRaportWiadomosci() {
 }
 
 // ============================================================================
-// POBIERANIE LINKÓW DO PLIKÓW JPG Z DYSKU GOOGLE (RETINA @2X)
+// POBIERANIE LINKÓW DO HERBÓW (RETINA @2X)
 // ============================================================================
 
 function wczytajIkonyHerbowZDrive() {
@@ -201,7 +200,6 @@ function wczytajIkonyHerbowZDrive() {
       if (pliki.hasNext()) {
         let plik = pliki.next();
         plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        // sz=w160 serwuje ostry obraz w jakości Retina przy wyświetlaniu na 18px
         urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w160";
       }
     }
@@ -360,7 +358,16 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
 function wyodrebnijCzystyUrl(tekst) {
   if (!tekst) return "";
   let str = String(tekst).trim();
-  if (str.startsWith("www.")) str = "https://" + str;
+
+  // Naprawa zdublowanych domen typu https://domena.pl//www.inna.pl...
+  let matchZdublowany = str.match(/https?:\/\/[^\/]+\/+(?:https?:\/\/|www\.)([^\s"'<>\)\]]+)/i);
+  if (matchZdublowany) {
+    return "https://" + matchZdublowany[1].replace(/[.,;:\)\]>]+$/, "").trim();
+  }
+
+  if (str.startsWith("//")) str = "https:" + str;
+  else if (str.startsWith("www.")) str = "https://" + str;
+
   let match = str.match(/https?:\/\/[^\s"'<>\)\]]+/i);
   if (!match) return "";
   let url = match[0];
@@ -694,9 +701,20 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
   text = text.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, function(match, href, anchorText) {
     let czystyAnchor = anchorText.replace(/<[^>]+>/g, "").trim();
     if (!czystyAnchor || czystyAnchor.length < 3) return "";
-    let pelnyUrl = href;
-    if (href.startsWith("/")) pelnyUrl = domain + href;
-    else if (!href.startsWith("http")) pelnyUrl = baseUrl.replace(/\/?$/, "/") + href;
+    
+    let pelnyUrl = href.trim();
+    if (pelnyUrl.startsWith("//")) {
+      pelnyUrl = "https:" + pelnyUrl;
+    } else if (pelnyUrl.startsWith("/")) {
+      pelnyUrl = domain + pelnyUrl;
+    } else if (!pelnyUrl.startsWith("http://") && !pelnyUrl.startsWith("https://")) {
+      if (pelnyUrl.startsWith("www.")) {
+        pelnyUrl = "https://" + pelnyUrl;
+      } else {
+        pelnyUrl = baseUrl.replace(/\/?$/, "/") + pelnyUrl;
+      }
+    }
+    
     if (pelnyUrl.includes("javascript:") || pelnyUrl.includes("#")) return czystyAnchor;
     return czystyAnchor + " [Link: " + pelnyUrl + "] ";
   });
