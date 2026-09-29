@@ -1,18 +1,19 @@
 /**
  * Główna funkcja uruchamiająca proces przygotowania i wysyłki raportu.
- * - Dynamiczne pobieranie listy odbiorców z pliku emails.txt (Automation/Migawka Wydarzeń)
- * - Wysyłka raportu do każdego adresata kolejno w osobnej wiadomości
- * - Bufor tekstu do 18 000 znaków (obejmuje pełne kalendaria)
- * - Trzy rundy analizy czasowej dla każdego źródła (przeszłe, trwające, przyszłe)
- * - Twarda weryfikacja dat po stronie kodu JS z jawną mapą dni tygodnia
+ * - Dynamiczne pobieranie listy odbiorców z emails.txt w folderze Automation/Migawka Wydarzeń
+ * - Wysyłka raportu do każdego odbiorcy kolejno w osobnym mailu
+ * - Rozszerzony bufor do 25 000 znaków dla serwisów lokalnych i rynkowych
+ * - Trzy rundy analizy czasowej dla każdego źródła
+ * - Inteligentne wyszukiwanie kolumny daty (zapobiega pustym tabelom makro/rynków)
+ * - Twarda weryfikacja dat po stronie JS z mapą dni tygodnia
  * - Ekstrakcja bezpośrednich linków do artykułów/wydarzeń
- * - Zapis do dokładnie 3 zakładek w Arkuszu Google
- * - Identyczna forma tabelaryczna w e-mailu oraz w załączniku PDF
+ * - Zapis do 3 zakładek w Arkuszu Google
+ * - Identyczna forma tabelaryczna w e-mailu oraz w PDF
  */
 function generujRaportWiadomosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // Wczytanie źródeł, promptu i listy odbiorców z Google Drive
+  // Wczytanie źródeł, promptu i listy odbiorców z Dysku Google
   const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
   const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
@@ -70,7 +71,8 @@ function generujRaportWiadomosci() {
       let url = unikalneUrle[index];
       if (resp.getResponseCode() === 200) {
         let tekstZLinkami = wyczyscHtmlZZachowaniemLinkow(resp.getContentText(), url);
-        tresciStron[url] = tekstZLinkami.length > 18000 ? tekstZLinkami.substring(0, 18000) : tekstZLinkami;
+        // Bufor 25k znaków, aby uwzględnić kalendaria oraz serwisy makro/giełdowe
+        tresciStron[url] = tekstZLinkami.length > 25000 ? tekstZLinkami.substring(0, 25000) : tekstZLinkami;
       } else {
         tresciStron[url] = ""; 
       }
@@ -87,7 +89,7 @@ function generujRaportWiadomosci() {
   let globalnePrzyszle = [];
 
   // ==========================================
-  // ŹRÓDŁA LOKALNE - 3 RUNDY Z WERYFIKACJĄ
+  // ŹRÓDŁA LOKALNE - 3 RUNDY ANALIZY
   // ==========================================
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
@@ -95,19 +97,21 @@ function generujRaportWiadomosci() {
       zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
 
       let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_trwajace", filtrProfilu);
-      if (r2) {
+      if (r2 && Array.isArray(r2)) {
         let r2Valid = r2.filter(row => {
-          if (row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          return czyDataWMiasteczkuCzasowym(row[1], "trwajace", dzisiaj, przed7Dniami, za7Dni);
+          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
+          let poleDaty = znajdzPoleDatyWWierszu(row);
+          return czyDataWMiasteczkuCzasowym(poleDaty, "trwajace", dzisiaj, przed7Dniami, za7Dni);
         });
         lokalneTrwajace = lokalneTrwajace.concat(r2Valid);
       }
 
       let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
-      if (r3) {
+      if (r3 && Array.isArray(r3)) {
         let r3Valid = r3.filter(row => {
-          if (row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          return czyDataWMiasteczkuCzasowym(row[1], "przyszle", dzisiaj, przed7Dniami, za7Dni);
+          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
+          let poleDaty = znajdzPoleDatyWWierszu(row);
+          return czyDataWMiasteczkuCzasowym(poleDaty, "przyszle", dzisiaj, przed7Dniami, za7Dni);
         });
         lokalnePrzyszle = lokalnePrzyszle.concat(r3Valid);
       }
@@ -115,32 +119,44 @@ function generujRaportWiadomosci() {
   });
 
   // ==========================================
-  // ŹRÓDŁA GLOBALNE - 3 RUNDY Z WERYFIKACJĄ
+  // ŹRÓDŁA GLOBALNE - 3 RUNDY ANALIZY
   // ==========================================
   SOURCES_GLOBALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
       let r1 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
-      if (r1) {
-        let r1Valid = r1.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE") && czyDataWMiasteczkuCzasowym(row[0], "przeszle", dzisiaj, przed7Dniami, za7Dni));
+      if (r1 && Array.isArray(r1)) {
+        let r1Valid = r1.filter(row => {
+          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
+          let poleDaty = znajdzPoleDatyWWierszu(row);
+          return czyDataWMiasteczkuCzasowym(poleDaty, "przeszle", dzisiaj, przed7Dniami, za7Dni);
+        });
         globalnePrzeszle = globalnePrzeszle.concat(r1Valid);
       }
 
       let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_trwajace", filtrProfilu);
-      if (r2) {
-        let r2Valid = r2.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE") && czyDataWMiasteczkuCzasowym(row[0], "trwajace", dzisiaj, przed7Dniami, za7Dni));
+      if (r2 && Array.isArray(r2)) {
+        let r2Valid = r2.filter(row => {
+          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
+          let poleDaty = znajdzPoleDatyWWierszu(row);
+          return czyDataWMiasteczkuCzasowym(poleDaty, "trwajace", dzisiaj, przed7Dniami, za7Dni);
+        });
         globalneTrwajace = globalneTrwajace.concat(r2Valid);
       }
 
       let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
-      if (r3) {
-        let r3Valid = r3.filter(row => !row.join(" ").toUpperCase().includes("ODRZUCONE") && czyDataWMiasteczkuCzasowym(row[0], "przyszle", dzisiaj, przed7Dniami, za7Dni));
+      if (r3 && Array.isArray(r3)) {
+        let r3Valid = r3.filter(row => {
+          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
+          let poleDaty = znajdzPoleDatyWWierszu(row);
+          return czyDataWMiasteczkuCzasowym(poleDaty, "przyszle", dzisiaj, przed7Dniami, za7Dni);
+        });
         globalnePrzyszle = globalnePrzyszle.concat(r3Valid);
       }
     }
   });
 
-  // Usunięcie duplikatów z listy lokalnej
+  // Deduplikacja listy lokalnej
   let mapaLokalne = new Map();
   [...lokalnePrzyszle, ...lokalneTrwajace].forEach(item => {
     let klucz = (item[3] || "").toLowerCase().trim();
@@ -163,8 +179,25 @@ function generujRaportWiadomosci() {
   zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", tabela2GlobalnePrzeszle, naglowkiGlobalne);
   zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", tabela3GlobalnePrzyszle, naglowkiGlobalne);
 
-  // Wysłanie raportu Email (indywidualnie) + PDF
+  // Wysłanie raportu Email (kolejno) + PDF
   wyslijRaportEmailTabelaryczny(tabela1Lokalne, tabela2GlobalnePrzeszle, tabela3GlobalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr, odbiorcyEmail);
+}
+
+/**
+ * Automatycznie wyszukuje komórkę z datą bez względu na kolejność kolumn w wierszu.
+ */
+function znajdzPoleDatyWWierszu(row) {
+  if (!row || !Array.isArray(row)) return "";
+  for (let i = 0; i < Math.min(row.length, 4); i++) {
+    let komorka = String(row[i] || "").trim();
+    if (/\b\d{4}-\d{2}-\d{2}\b/.test(komorka) || /\b\d{2}\.\d{2}\.\d{4}\b/.test(komorka)) {
+      return komorka;
+    }
+    if (/trwa|dzisiaj|bieżący|ostatni/i.test(komorka)) {
+      return komorka;
+    }
+  }
+  return String(row[0] || "");
 }
 
 /**
@@ -218,22 +251,27 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     strukturaKolumn = '["Data wydarzenia", "Godzina", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wiadomości"]';
     
     if (typRaportu === "globalne_przeszle") {
-      instrukcjaZadaniowa = "RUNDA 1 (RYNKI - MINIONE 7 DNI): Decyzje banków centralnych, inflacja, krypto, surowce.";
+      instrukcjaZadaniowa = "RUNDA 1 (RYNKI I GOSPODARKA - CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH):\n" +
+        "- Twarde dane: stopy procentowe (RPP, Fed, EBC), wskaźniki inflacji, istotne ruchy na giełdach, krypto/blockchain i surowcach.\n" +
+        "- Odrzuć: spory partyjne bez wpływu na finanse, sensacje, plotki.";
     } else if (typRaportu === "globalne_trwajace") {
-      instrukcjaZadaniowa = "RUNDA 2 (RYNKI - TRWAJĄCE): Szczyty gospodarcze, konferencje technologiczne.";
+      instrukcjaZadaniowa = "RUNDA 2 (RYNKI I GOSPODARKA - PROCESY TRWAJĄCE):\n" +
+        "- Trwające szczyty gospodarcze, konferencje technologiczne, wielodniowe głosowania regulacyjne i procesy rynkowe w toku.\n" +
+        "- W polu 'Data wydarzenia' wpisz: 'Trwa' lub dzisiejszą datę.";
     } else if (typRaportu === "globalne_przyszle") {
-      instrukcjaZadaniowa = "RUNDA 3 (RYNKI - NAJBLIŻSZE 7 DNI): Kalendarium makroekonomiczne i zapowiedzi.";
+      instrukcjaZadaniowa = "RUNDA 3 (RYNKI I GOSPODARKA - KALENDARIUM NA NAJBLIŻSZE 7 DNI):\n" +
+        "- Zaplanowane publikacje kluczowych danych (CPI, PKB), posiedzenia banków centralnych, premiery technologiczne o znaczeniu inwestycyjnym.";
     }
   }
 
   let systemPrompt = 
-    "Jesteś skutecznym asystentem i analitykiem wyszukującym wartościowe wydarzenia.\n\n" +
+    "Jesteś skutecznym asystentem analitycznym dla inwestora i ojca z Krakowa.\n\n" +
     kontekstCzasowy + "\n\n" +
     filtrProfilu + "\n\n" +
     instrukcjaZadaniowa + "\n\n" +
     "REGUŁY KALENDARZOWE:\n" +
-    "1. Zwracaj datę w formacie YYYY-MM-DD (np. 2026-10-03) lub zakres 'YYYY-MM-DD - YYYY-MM-DD', a dla stałych atrakcji: 'Trwa'.\n" +
-    "2. Sprawdź miesiąc: Uważaj, by nie brać artykułów z ubiegłego miesiąca. Jeśli tekst jawnie opisuje wydarzenie sprzed miesiąca — pomiń je.\n" +
+    "1. Format daty MUSI wynosić YYYY-MM-DD (np. 2026-10-03), zakres 'YYYY-MM-DD - YYYY-MM-DD' lub 'Trwa'.\n" +
+    "2. Sprawdź miesiąc: Uważaj, by nie brać artykułów sprzed miesiąca. Jeśli tekst jawnie opisuje wydarzenie sprzed miesiąca — pomiń je.\n" +
     "3. Ekstrakcja linku: W ostatniej kolumnie podaj bezpośredni link do wydarzenia znaleziony w tekście (np. 'Nazwa — https://...').\n\n" +
     "Przeanalizuj treść ze źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
     "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Pola w wierszu muszą ściśle odpowiadać: " + strukturaKolumn + ". Jeśli brak pozycji, zwróć: {\"dane\": []}.";
@@ -267,22 +305,25 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
 }
 
 /**
- * Uelastyczniona walidacja daty w JS
+ * Uelastyczniona walidacja daty w JS (obsługuje zakresy, słowa kluczowe i daty YYYY-MM-DD)
  */
 function czyDataWMiasteczkuCzasowym(dataStr, typOkna, dzisiaj, przed7Dni, za7Dni) {
   if (!dataStr) return false;
   let str = String(dataStr).trim();
 
-  if (str.toLowerCase().includes("trwa") || str.toLowerCase().includes("dzisiaj")) {
+  // Wpisy stałe lub bezterminowe
+  if (str.toLowerCase().includes("trwa") || str.toLowerCase().includes("dzisiaj") || str.toLowerCase().includes("bieżący")) {
     return (typOkna === "trwajace" || typOkna === "przyszle");
   }
 
+  // Wyszukanie pierwszej daty w formacie YYYY-MM-DD
   let match = str.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (!match) {
     let matchPL = str.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/);
     if (matchPL) {
       match = [null, matchPL[3], matchPL[2], matchPL[1]];
     } else {
+      // Jeśli AI podało inny opis tekstowy, nie odrzucamy pochopnie
       return true;
     }
   }
@@ -342,7 +383,7 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
 }
 
 /**
- * Buduje zunifikowaną treść tabelaryczną HTML wspólną dla Emaila i PDF
+ * Zunifikowana treść tabelaryczna HTML wspólna dla Emaila i PDF
  */
 function generujCialoRaportuTabelarycznego(lokalne, globalnePrzeszle, globalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr, dlaPdf) {
   let stylowanieTabeli = dlaPdf 
@@ -380,7 +421,7 @@ function generujCialoRaportuTabelarycznego(lokalne, globalnePrzeszle, globalnePr
 }
 
 /**
- * Buduje tabelę z responsywnym kodem HTML
+ * Buduje tabelę HTML
  */
 function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, stylowanieDodatkowe, dlaPdf) {
   if (!dane || dane.length === 0) {
@@ -416,7 +457,7 @@ function budujTabeleUniwersalna(dane, naglowki, kolorGlowny, kolorWierszaAlt, st
 }
 
 /**
- * Formatuje link do czytelnego przycisku lub hiperłącza
+ * Formatowanie linku do komórki
  */
 function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
   if (!tekst || tekst === "—") return "—";
@@ -442,7 +483,7 @@ function formatujKomorkeZLinkiem(tekst, kolor, dlaPdf) {
 }
 
 /**
- * Wysyła raport tabelaryczny do każdego odbiorcy z listy kolejno w osobnym mailu
+ * Wysyłka raportu tabelarycznego sekwencyjnie do każdego odbiorcy
  */
 function wyslijRaportEmailTabelaryczny(lokalne, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr, listaOdbiorcow) {
   let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
