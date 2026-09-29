@@ -1,9 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - WERSJA BEZ PDF Z ZABEZPIECZENIEM LIMITU TOKENÓW
- * 
- * - max_tokens: 8192 oraz limit do 20 kluczowych wpisów na źródło (eliminuje Unterminated string in JSON)
- * - Brak generowania PDF (tylko responsywny email HTML)
- * - Dynamiczny Web App (zapis z Captcha + link Unsubscribe)
+ * MIGAWKA WYDARZEŃ - WERSJA Z KOLUMNĄ "GDZIE" (BEZ KOLUMNY "OBSZAR" W E-MAILU)
  */
 
 function generujRaportWiadomosci() {
@@ -19,7 +15,7 @@ function generujRaportWiadomosci() {
   }
 
   if (!filtrProfilu) {
-    filtrProfilu = "Domyślny tryb: Ojciec 2 córek w Krakowie (czas wolny/dzieci), inwestor śledzący rynki i kluczowe zmiany w mieście. Całkowity zakaz szumu informacyjnego.";
+    filtrProfilu = "Domyślny tryb: Ojciec 2 córek (czas wolny/dzieci w Krakowie, Myślenicach i Tarnowie), inwestor śledzący rynki i kluczowe zmiany lokalne, krajowe i globalne. Całkowity zakaz szumu informacyjnego.";
   }
 
   let dzisiaj = new Date();
@@ -74,410 +70,335 @@ function generujRaportWiadomosci() {
     Logger.log("Błąd pobierania stron: " + e.message);
   }
 
-  let lokalneTrwajace = [];
-  let lokalnePrzyszle = [];
+  let sekcja1_Rodziny = [];
+  let sekcja2_WydarzyloSie = [];
+  let sekcja3_WPlanach = [];
 
-  let globalnePrzeszle = [];
-  let globalneTrwajace = [];
-  let globalnePrzyszle = [];
-
-  // Źródła Lokalne
+  // 1. ŹRÓDŁA LOKALNE
   SOURCES_LOKALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
-
-      let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_trwajace", filtrProfilu);
-      if (r2 && Array.isArray(r2)) {
-        let r2Valid = r2.filter(row => {
-          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          let poleDaty = znajdzPoleDatyWWierszu(row);
-          return czyDataWMiasteczkuCzasowym(poleDaty, "trwajace", dzisiaj, przed7Dniami, za7Dni);
-        });
-        lokalneTrwajace = lokalneTrwajace.concat(r2Valid);
+      let rRodzinyTrwajace = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "rodziny_trwajace", filtrProfilu);
+      if (rRodzinyTrwajace && Array.isArray(rRodzinyTrwajace)) {
+        sekcja1_Rodziny = sekcja1_Rodziny.concat(rRodzinyTrwajace.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
       }
 
-      let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przyszle", filtrProfilu);
-      if (r3 && Array.isArray(r3)) {
-        let r3Valid = r3.filter(row => {
-          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          let poleDaty = znajdzPoleDatyWWierszu(row);
-          return czyDataWMiasteczkuCzasowym(poleDaty, "przyszle", dzisiaj, przed7Dniami, za7Dni);
-        });
-        lokalnePrzyszle = lokalnePrzyszle.concat(r3Valid);
+      let rRodzinyPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "rodziny_przyszle", filtrProfilu);
+      if (rRodzinyPrzyszle && Array.isArray(rRodzinyPrzyszle)) {
+        sekcja1_Rodziny = sekcja1_Rodziny.concat(rRodzinyPrzyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      }
+
+      let rLokalnePrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
+      if (rLokalnePrzeszle && Array.isArray(rLokalnePrzeszle)) {
+        sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(rLokalnePrzeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      }
+
+      let rLokalnePlany = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_plany", filtrProfilu);
+      if (rLokalnePlany && Array.isArray(rLokalnePlany)) {
+        sekcja3_WPlanach = sekcja3_WPlanach.concat(rLokalnePlany.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
       }
     }
   });
 
-  // Źródła Globalne
+  // 2. ŹRÓDŁA GLOBALNE / KRAJOWE
   SOURCES_GLOBALNE.forEach(source => {
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let r1 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
-      if (r1 && Array.isArray(r1)) {
-        let r1Valid = r1.filter(row => {
-          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          let poleDaty = znajdzPoleDatyWWierszu(row);
-          return czyDataWMiasteczkuCzasowym(poleDaty, "przeszle", dzisiaj, przed7Dniami, za7Dni);
-        });
-        globalnePrzeszle = globalnePrzeszle.concat(r1Valid);
+      let rGlobalnePrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
+      if (rGlobalnePrzeszle && Array.isArray(rGlobalnePrzeszle)) {
+        sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(rGlobalnePrzeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
       }
 
-      let r2 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_trwajace", filtrProfilu);
-      if (r2 && Array.isArray(r2)) {
-        let r2Valid = r2.filter(row => {
-          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          let poleDaty = znajdzPoleDatyWWierszu(row);
-          return czyDataWMiasteczkuCzasowym(poleDaty, "trwajace", dzisiaj, przed7Dniami, za7Dni);
-        });
-        globalneTrwajace = globalneTrwajace.concat(r2Valid);
-      }
-
-      let r3 = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
-      if (r3 && Array.isArray(r3)) {
-        let r3Valid = r3.filter(row => {
-          if (!row || row.join(" ").toUpperCase().includes("ODRZUCONE")) return false;
-          let poleDaty = znajdzPoleDatyWWierszu(row);
-          return czyDataWMiasteczkuCzasowym(poleDaty, "przyszle", dzisiaj, przed7Dniami, za7Dni);
-        });
-        globalnePrzyszle = globalnePrzyszle.concat(r3Valid);
+      let rGlobalnePrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
+      if (rGlobalnePrzyszle && Array.isArray(rGlobalnePrzyszle)) {
+        sekcja3_WPlanach = sekcja3_WPlanach.concat(rGlobalnePrzyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
       }
     }
   });
 
   // Deduplikacja
-  let mapaLokalne = new Map();
-  [...lokalnePrzyszle, ...lokalneTrwajace].forEach(item => {
-    let klucz = (item[3] || "").toLowerCase().trim();
-    if (!mapaLokalne.has(klucz)) mapaLokalne.set(klucz, item);
+  let mapaRodziny = new Map();
+  sekcja1_Rodziny.forEach(item => {
+    let tytul = (item[4] || "").toLowerCase().trim(); // Tytuł jest na indeksie 4
+    if (tytul && !mapaRodziny.has(tytul)) mapaRodziny.set(tytul, item);
   });
-  let tabela1Lokalne = Array.from(mapaLokalne.values());
+  sekcja1_Rodziny = Array.from(mapaRodziny.values());
 
-  let tabela2GlobalnePrzeszle = globalnePrzeszle;
-  let tabela3GlobalnePrzyszle = [...globalneTrwajace, ...globalnePrzyszle];
+  let mapaWydarzylo = new Map();
+  sekcja2_WydarzyloSie.forEach(item => {
+    let tytul = (item[4] || "").toLowerCase().trim();
+    if (tytul && !mapaWydarzylo.has(tytul)) mapaWydarzylo.set(tytul, item);
+  });
+  sekcja2_WydarzyloSie = Array.from(mapaWydarzylo.values());
 
-  sortujIGrupujWyniki(tabela1Lokalne, 1, 0);
-  sortujIGrupujWyniki(tabela2GlobalnePrzeszle, 0, 2);
-  sortujIGrupujWyniki(tabela3GlobalnePrzyszle, 0, 2);
+  let mapaPlany = new Map();
+  sekcja3_WPlanach.forEach(item => {
+    let tytul = (item[4] || "").toLowerCase().trim();
+    if (tytul && !mapaPlany.has(tytul)) mapaPlany.set(tytul, item);
+  });
+  sekcja3_WPlanach = Array.from(mapaPlany.values());
 
-  let naglowkiLokalne = ["Obszar / Lokalizacja", "Data / Dzień", "Godzina", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wydarzenia"];
-  let naglowkiGlobalne = ["Data wydarzenia", "Godzina", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wiadomości"];
+  sortujIGrupujWyniki(sekcja1_Rodziny, 0, 1);
+  sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
+  sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
-  zapiszDoArkusza(ss, "1. Lokalne - Trwające i przyszłe (w tym tygdoniu)", tabela1Lokalne, naglowkiLokalne);
-  zapiszDoArkusza(ss, "2. Świat - Co się wydarzyło", tabela2GlobalnePrzeszle, naglowkiGlobalne);
-  zapiszDoArkusza(ss, "3. Świat - Co się wydarzy", tabela3GlobalnePrzyszle, naglowkiGlobalne);
+  // Nagłówki bazy w Arkuszu Google (z Obszarem dla celów analitycznych)
+  let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
+  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
-  wyslijRaportEmailTabelaryczny(tabela1Lokalne, tabela2GlobalnePrzeszle, tabela3GlobalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr, odbiorcyEmail);
+  zapiszDoArkusza(ss, "1. Wydarzenia dla Rodzin", sekcja1_Rodziny, naglowkiArkuszRodziny);
+  zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
+  zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
+
+  let mapaUrlIkon = wczytajIkonyHerbowZDrive();
+
+  // Wysłanie raportu email (bez kolumny Obszar, z nową kolumną Gdzie)
+  wyslijRaportEmailTabelaryczny(
+    sekcja1_Rodziny, 
+    sekcja2_WydarzyloSie, 
+    sekcja3_WPlanach, 
+    dzisiajStr, 
+    odbiorcyEmail, 
+    mapaUrlIkon
+  );
 }
 
 // ============================================================================
-// 2. MODUŁ WEB APP: ZAPIS PRZEZ FORMULARZ ORAZ UNSUBSCRIBE
+// POBIERANIE LINKÓW DO HERBÓW / IKON Z DYSKU GOOGLE
 // ============================================================================
 
-function doGet(e) {
-  let parametry = e ? e.parameter : null;
-  let email = parametry ? parametry.email : null;
-  let akcja = parametry ? parametry.action : null;
+function wczytajIkonyHerbowZDrive() {
+  const mapowanieNazw = {
+    "01_herb_krakowa.jpg": "01_herb_krakowa.jpg",
+    "02_herb_orzel_blekitny.jpg": "02_herb_orzel_blekitny.jpg",
+    "03_herb_malopolska.jpg": "03_herb_malopolska.jpg",
+    "04_herb_myslenice.jpg": "04_herb_myslenice.jpg",
+    "05_herb_tarnow_1.jpg": "05_herb_tarnow_1.jpg",
+    "06_herb_tarnow_2.jpg": "06_herb_tarnow_2.jpg",
+    "07_flaga_polska_1.jpg": "07_flaga_polska_1.jpg",
+    "08_flaga_unia_europejska_tekst.jpg": "08_flaga_unia_europejska_tekst.jpg",
+    "09_flaga_ue_gwiazdy.jpg": "09_flaga_ue_gwiazdy.jpg",
+    "10_symbol_swiat_globus.jpg": "10_symbol_swiat_globus.jpg"
+  };
 
-  if (akcja === "unsubscribe" && email) {
-    let sukces = usunAdresEmailZPliku("Automation", "Migawka Wydarzeń", "emails.txt", email.trim());
-    let tytul = sukces ? "Wypisano z subskrypcji" : "Wystąpił błąd";
-    let kolor = sukces ? "#059669" : "#dc2626";
-    let komunikat = sukces 
-      ? `Twój adres <strong>${email}</strong> został pomyślnie usunięty z listy odbiorców raportu.` 
-      : `Nie udało się przetworzyć wypisania adresu <strong>${email}</strong> (możliwe, że został już usunięty wcześniej).`;
-
-    let html = generujKomunikatKartyHtml(tytul, kolor, komunikat);
-    return HtmlService.createHtmlOutput(html)
-      .setTitle(tytul)
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-
-  return HtmlService.createHtmlOutput(generujFormularzZapisuHtml())
-    .setTitle("Zapisz się do Migawki Wydarzeń")
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-function doPost(e) {
-  let postData = e ? e.parameter : null;
-  if (!postData) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: false, 
-      komunikat: "Brak danych formularza." 
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  let email = postData.email ? postData.email.trim() : "";
-  let captchaToken = postData["cf-turnstile-response"] || postData["g-recaptcha-response"] || "";
-
-  let captchaOk = zweryfikujCaptcha(captchaToken);
-  if (!captchaOk) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: false, 
-      komunikat: "Weryfikacja antyspamowa Captcha zakończyła się niepowodzeniem. Spróbuj ponownie." 
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  if (!email || !email.includes("@") || !email.includes(".")) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: false, 
-      komunikat: "Wprowadzony adres e-mail jest niepoprawny." 
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  let wynik = dodajAdresEmailDoPliku("Automation", "Migawka Wydarzeń", "emails.txt", email);
-
-  if (wynik.sukces) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: true, 
-      komunikat: `Adres ${email} został pomyślnie dopisany do listy subskrybentów!` 
-    })).setMimeType(ContentService.MimeType.JSON);
-  } else if (wynik.duplikat) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: true, 
-      komunikat: `Adres ${email} znajduje się już na liście subskrybentów.` 
-    })).setMimeType(ContentService.MimeType.JSON);
-  } else {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      sukces: false, 
-      komunikat: "Wystąpił problem techniczny podczas zapisu pliku na Dysku Google." 
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function zweryfikujCaptcha(token) {
-  const secretKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SECRET_KEY");
-  
-  if (!secretKey || secretKey === "TWÓJ_SECRET_KEY_CAPTCHA") {
-    Logger.log("Brak CAPTCHA_SECRET_KEY w Script Properties - akceptacja w trybie testowym.");
-    return true;
-  }
-
-  if (!token) {
-    Logger.log("Odrzucono: brak tokena Captcha.");
-    return false;
-  }
-
-  const verifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+  let urleIkon = {};
 
   try {
-    let payload = { secret: secretKey, response: token };
-    let opcje = { method: "post", payload: payload, muteHttpExceptions: true };
-    let resp = UrlFetchApp.fetch(verifyUrl, opcje);
-    let wynikJson = JSON.parse(resp.getContentText());
-    return wynikJson.success === true;
-  } catch (err) {
-    Logger.log("Błąd zapytania weryfikacji Captcha: " + err.message);
-    return false;
-  }
-}
+    let fGlowny = DriveApp.getFoldersByName("Automation");
+    if (!fGlowny.hasNext()) return urleIkon;
+    let fMigawka = fGlowny.next().getFoldersByName("Migawka Wydarzeń");
+    if (!fMigawka.hasNext()) return urleIkon;
+    let fBrand = fMigawka.next().getFoldersByName("Brand");
+    if (!fBrand.hasNext()) return urleIkon;
+    let fIkony = fBrand.next().getFoldersByName("ikony_herby_i_symbole");
+    if (!fIkony.hasNext()) return urleIkon;
+    let fJpg = fIkony.next().getFoldersByName("JPG");
+    if (!fJpg.hasNext()) return urleIkon;
+    let folderDocelowy = fJpg.next();
 
-function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, nowyEmail) {
-  try {
-    let folderyGlowne = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
-    if (!folderyGlowne.hasNext()) return { sukces: false };
-    let folderGlowny = folderyGlowne.next();
-
-    let podfoldery = folderGlowny.getFoldersByName(nazwaPodfolderu);
-    if (!podfoldery.hasNext()) return { sukces: false };
-    let podfolder = podfoldery.next();
-
-    let pliki = podfolder.getFilesByName(nazwaPliku);
-    let plik;
-
-    if (!pliki.hasNext()) {
-      plik = podfolder.createFile(nazwaPliku, "");
-    } else {
-      plik = pliki.next();
-    }
-
-    let zawartosc = plik.getBlob().getDataAsString();
-    let suroweWpisy = zawartosc.split(/[\r\n,;]+/);
-    let unikalneAdresy = [];
-    let juzIstnieje = false;
-
-    suroweWpisy.forEach(wpis => {
-      let adr = wpis.trim();
-      if (adr && adr.includes("@")) {
-        if (adr.toLowerCase() === nowyEmail.toLowerCase()) juzIstnieje = true;
-        unikalneAdresy.push(adr);
+    for (let plikKlucz in mapowanieNazw) {
+      let nazwaPliku = mapowanieNazw[plikKlucz];
+      let pliki = folderDocelowy.getFilesByName(nazwaPliku);
+      if (pliki.hasNext()) {
+        let plik = pliki.next();
+        plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        urleIkon[plikKlucz] = "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w60";
       }
+    }
+  } catch (e) {
+    Logger.log("Błąd odczytu ikon: " + e.message);
+  }
+
+  return urleIkon;
+}
+
+// ============================================================================
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z KOLUMNĄ "GDZIE", BEZ "OBSZAR")
+// ============================================================================
+
+function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
+  mapaUrlIkon = mapaUrlIkon || {};
+
+  // Nagłówki w e-mailu (kolumna Obszar usunięta, dodana kolumna Gdzie)
+  const naglowkiEmailRodziny = ["Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
+  const naglowkiEmailOgolne = ["Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+
+  const konfiguracjaRodziny = [
+    { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
+    { nazwaPliku: "04_herb_myslenice.jpg", etykieta: "Myślenice", filtr: ["myślenic", "myslenic"] },
+    { nazwaPliku: "05_herb_tarnow_1.jpg", etykieta: "Tarnów", filtr: ["tarnów", "tarnow"] }
+  ];
+
+  const konfiguracjaOgolna = [
+    { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
+    { nazwaPliku: "03_herb_malopolska.jpg", etykieta: "Małopolska", filtr: ["małopolsk", "malopolsk"] },
+    { nazwaPliku: "07_flaga_polska_1.jpg", etykieta: "Polska", filtr: ["polska", "kraj", "rpp"] },
+    { nazwaPliku: "09_flaga_ue_gwiazdy.jpg", etykieta: "Unia Europejska", filtr: ["unia", "ue", "europejsk", "ebc", "bruksela"] },
+    { nazwaPliku: "10_symbol_swiat_globus.jpg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
+  ];
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 860px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
+      <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 4px; border-bottom: 2px solid #cbd5e1; padding-bottom: 6px;">
+        🎯 Migawka Wydarzeń (${dzisiajStr})
+      </h2>
+      <p style="font-size: 12px; color: #64748b; margin-top: 4px; margin-bottom: 24px;">
+        Cotygodniowy raport wydarzeń i informacji.
+      </p>
+
+      <!-- 1. WYDARZENIA DLA RODZIN -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="font-size: 16px; color: #166534; margin: 0 0 14px 0; border-bottom: 2px solid #166534; padding-bottom: 4px;">
+          1. Wydarzenia dla Rodzin
+        </h3>
+        ${budujGrupyZHerbami(daneRodziny, naglowkiEmailRodziny, konfiguracjaRodziny, "#166534", "#f0fdf4", mapaUrlIkon, 8)}
+      </div>
+
+      <!-- 2. CO SIĘ WYDARZYŁO (MINIONE 7 DNI) -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 14px 0; border-bottom: 2px solid #1e293b; padding-bottom: 4px;">
+          2. Co się wydarzyło (Minione 7 dni)
+        </h3>
+        ${budujGrupyZHerbami(daneWydarzylo, naglowkiEmailOgolne, konfiguracjaOgolna, "#334155", "#f8fafc", mapaUrlIkon, 6)}
+      </div>
+
+      <!-- 3. CO JEST W PLANACH ? -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="font-size: 16px; color: #92400e; margin: 0 0 14px 0; border-bottom: 2px solid #92400e; padding-bottom: 4px;">
+          3. Co jest w planach ?
+        </h3>
+        ${budujGrupyZHerbami(danePlany, naglowkiEmailOgolne, konfiguracjaOgolna, "#92400e", "#fffbeb", mapaUrlIkon, 6)}
+      </div>
+    </div>
+  `;
+}
+
+function budujGrupyZHerbami(dane, naglowkiTabeli, konfiguracja, kolorNagl, kolorWierszaAlt, mapaUrlIkon, limitWpisow) {
+  let html = "";
+  let pozostale = [...(dane || [])];
+
+  konfiguracja.forEach(pozycja => {
+    // Wiersz: indeks 0 = Obszar (używany wyłącznie do grupowania i dopasowania herbu)
+    let wierszeDlaPozycji = pozostale.filter(row => {
+      let obszar = String(row[0] || "").toLowerCase();
+      return pozycja.filtr.some(slowo => obszar.includes(slowo));
     });
 
-    if (juzIstnieje) return { sukces: false, duplikat: true };
+    pozostale = pozostale.filter(row => !wierszeDlaPozycji.includes(row));
 
-    unikalneAdresy.push(nowyEmail.toLowerCase());
-    plik.setContent(unikalneAdresy.join("\n"));
-    return { sukces: true, duplikat: false };
-  } catch (err) {
-    Logger.log("Błąd zapisu nowego emaila: " + err.message);
-    return { sukces: false };
-  }
-}
+    let imgUrl = mapaUrlIkon[pozycja.nazwaPliku] || "";
+    let imgTag = imgUrl ? `<img src="${imgUrl}" alt="${pozycja.etykieta}" style="height: 20px; width: auto; vertical-align: middle; margin-right: 8px;" />` : "";
 
-function usunAdresEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, emailDoUsuniecia) {
-  try {
-    let folderyGlowne = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
-    if (!folderyGlowne.hasNext()) return false;
-    let folderGlowny = folderyGlowne.next();
+    // Przygotowujemy dane do tabeli e-maila: usuwamy kolumnę indeksu 0 (Obszar), 
+    // a pierwszym polem staje się indeks 1 (Gdzie)
+    let wierszeDoEmaila = wierszeDlaPozycji.map(row => row.slice(1));
 
-    let podfoldery = folderGlowny.getFoldersByName(nazwaPodfolderu);
-    if (!podfoldery.hasNext()) return false;
-    let podfolder = podfoldery.next();
-
-    let pliki = podfolder.getFilesByName(nazwaPliku);
-    if (!pliki.hasNext()) return false;
-    let plik = pliki.next();
-
-    let zawartosc = plik.getBlob().getDataAsString();
-    let suroweWpisy = zawartosc.split(/[\r\n,;]+/);
-    let nowaLista = [];
-    let znaleziono = false;
-
-    suroweWpisy.forEach(wpis => {
-      let adr = wpis.trim();
-      if (adr && adr.includes("@")) {
-        if (adr.toLowerCase() === emailDoUsuniecia.toLowerCase()) {
-          znaleziono = true;
-        } else {
-          nowaLista.push(adr);
+    html += `
+      <div style="margin-top: 14px; margin-bottom: 18px;">
+        <div style="font-weight: bold; font-size: 14px; color: #0f172a; margin-bottom: 6px; display: flex; align-items: center;">
+          ${imgTag}<span>${pozycja.etykieta}</span>
+        </div>
+        ${wierszeDoEmaila.length > 0 
+          ? budujTabeleEmail(wierszeDoEmaila.slice(0, limitWpisow), naglowkiTabeli, kolorNagl, kolorWierszaAlt)
+          : `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin: 2px 0 10px 28px;">Brak odnotowanych pozycji w tym okresie.</p>`
         }
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
+  if (!dane || dane.length === 0) return "";
+
+  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0;">`;
+  
+  html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
+  naglowki.forEach(naglowek => {
+    html += `<th style="border: 1px solid #cbd5e1; padding: 5px 6px; text-align: left; font-weight: 600;">${naglowek}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  dane.forEach((wiersz, idx) => {
+    let tlo = (idx % 2 === 1) ? `background-color: ${kolorWierszaAlt};` : `background-color: #ffffff;`;
+    html += `<tr style="${tlo}">`;
+    wiersz.forEach((komorka, colIdx) => {
+      let tekst = String(komorka || "").trim();
+      let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
+      
+      if (jestOstatniaKolumna || tekst.includes("http")) {
+        tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
+      } else if (tekst.length > 220) {
+        tekst = tekst.substring(0, 220) + "...";
       }
+      
+      // Jeśli pole "Gdzie" lub inne pole tekstowe jest puste, nie wyświetlamy "—", lecz pozostaje puste
+      html += `<td style="border: 1px solid #cbd5e1; padding: 4px 6px; vertical-align: top; line-height: 1.3;">${tekst}</td>`;
     });
+    html += `</tr>`;
+  });
 
-    if (znaleziono) {
-      plik.setContent(nowaLista.join("\n"));
-      return true;
-    }
-    return false;
-  } catch (err) {
-    Logger.log(`Błąd podczas usuwania emaila: ${err.message}`);
-    return false;
+  html += `</tbody></table>`;
+  return html;
+}
+
+function formatujKomorkeZLinkiem(tekst, kolor) {
+  if (!tekst) return "";
+
+  let matchUrl = tekst.match(/https?:\/\/[^\s"'<>\)]+/);
+  if (matchUrl) {
+    let url = matchUrl[0];
+    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; display: inline-block;">Link ↗</a>`;
   }
+  return tekst;
 }
 
-function generujFormularzZapisuHtml() {
-  const siteKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SITE_KEY") || "";
+function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaOdbiorcow, mapaUrlIkon) {
+  let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
+  if (odbiorcy.length === 0) return;
+
+  let temat = "🎯 Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
+
   let webAppUrl = "";
-  try { webAppUrl = ScriptApp.getService().getUrl(); } catch(e) {}
+  try {
+    webAppUrl = ScriptApp.getService().getUrl();
+  } catch (e) {}
 
-  return `
-    <!DOCTYPE html>
-    <html lang="pl">
-    <head>
-      <meta charset="UTF-8">
-      <title>Zapisz się do Migawki Wydarzeń</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
-        .card { background: #ffffff; padding: 36px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08); max-width: 440px; width: 100%; border: 1px solid #e2e8f0; }
-        h1 { font-size: 20px; margin-top: 0; margin-bottom: 8px; color: #0f172a; }
-        p { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 24px; }
-        label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; }
-        input[type="email"] { width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; outline: none; }
-        input[type="email"]:focus { border-color: #0284c7; }
-        .captcha-wrapper { margin: 20px 0; display: flex; justify-content: center; }
-        button { width: 100%; background-color: #0284c7; color: white; border: none; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; }
-        button:hover { background-color: #0369a1; }
-        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-        .note { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 16px; margin-bottom: 0; }
-        #komunikat { display: none; padding: 14px; border-radius: 6px; font-size: 13px; line-height: 1.4; margin-top: 16px; text-align: center; }
-        .sukces { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-        .blad { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h1>🎯 Migawka Wydarzeń</h1>
-        <p>Cotygodniowy raport wydarzeń rodzinnych w Krakowie oraz kluczowych wieści makroekonomicznych.</p>
-        
-        <form id="formularzZapisu">
-          <label for="email">Twój adres e-mail</label>
-          <input type="email" id="email" name="email" placeholder="twoj.email@example.com" required>
-          
-          <div class="captcha-wrapper">
-            <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
-          </div>
-          
-          <button type="submit" id="btnSubmit">Zapisz się do newslettera</button>
-          <div id="komunikat"></div>
-          <p class="note">Możesz wypisać się w dowolnym momencie jednym kliknięciem.</p>
-        </form>
+  let cialoRaportuHtml = generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon);
+
+  odbiorcy.forEach((adresat, index) => {
+    let emailCzysty = adresat.trim();
+    if (!emailCzysty) return;
+
+    let unsubscribeLink = webAppUrl ? `${webAppUrl}?action=unsubscribe&email=${encodeURIComponent(emailCzysty)}` : "#";
+
+    let emailHtml = `
+      <div style="max-width: 880px; margin: 0 auto; background-color: #ffffff; padding: 12px;">
+        ${cialoRaportuHtml}
+        <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center;">
+          Raport przygotowany przez DeepSeek AI dla ${emailCzysty}. 
+          <a href="${unsubscribeLink}" target="_blank" style="color: #64748b; margin-left: 8px;">Wypisz się z subskrypcji</a>
+        </div>
       </div>
+    `;
 
-      <script>
-        document.getElementById("formularzZapisu").addEventListener("submit", function(e) {
-          e.preventDefault();
-          const btn = document.getElementById("btnSubmit");
-          const box = document.getElementById("komunikat");
-          const emailInput = document.getElementById("email");
-          
-          btn.disabled = true;
-          btn.innerText = "Zapisywanie...";
-          box.style.display = "none";
-
-          const formData = new FormData(this);
-
-          fetch("${webAppUrl}", {
-            method: "POST",
-            body: formData
-          })
-          .then(resp => resp.json())
-          .then(data => {
-            box.style.display = "block";
-            box.className = data.sukces ? "sukces" : "blad";
-            box.innerText = data.komunikat;
-            if (data.sukces) {
-              emailInput.value = "";
-              if (window.turnstile) turnstile.reset();
-            }
-          })
-          .catch(err => {
-            box.style.display = "block";
-            box.className = "blad";
-            box.innerText = "Zapisano adres lub przetworzono żądanie.";
-          })
-          .finally(() => {
-            btn.disabled = false;
-            btn.innerText = "Zapisz się do newslettera";
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `;
-}
-
-function generujKomunikatKartyHtml(tytul, kolor, tresc) {
-  return `
-    <!DOCTYPE html>
-    <html lang="pl">
-    <head>
-      <meta charset="UTF-8">
-      <title>${tytul}</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .card { background: #ffffff; padding: 36px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 460px; width: 100%; text-align: center; border: 1px solid #e2e8f0; }
-        h2 { color: ${kolor}; margin-top: 0; font-size: 20px; }
-        p { color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
-        a { display: inline-block; background: #f1f5f9; color: #334155; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 500; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h2>${tytul}</h2>
-        <p>${tresc}</p>
-        <a href="javascript:window.history.back()">Wróć</a>
-      </div>
-    </body>
-    </html>
-  `;
+    try {
+      MailApp.sendEmail({
+        to: emailCzysty,
+        subject: temat,
+        htmlBody: emailHtml
+      });
+      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano do: ${emailCzysty}`);
+      if (index < odbiorcy.length - 1) Utilities.sleep(500);
+    } catch (err) {
+      Logger.log(`Błąd wysyłki do ${emailCzysty}: ${err.message}`);
+    }
+  });
 }
 
 // ============================================================================
-// 3. KOMUNIKACJA Z DEEPSEEK AI Z ZWIĘKSZONYM MAX_TOKENS I PARSEREM
+// KOMUNIKACJA Z DEEPSEEK AI - Z EKSTRAKCJĄ KOLUMNY "GDZIE"
 // ============================================================================
 
 function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
@@ -485,61 +406,53 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
   if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
-
   let instrukcjaZadaniowa = "";
   let strukturaKolumn = "";
 
-  if (typRaportu.startsWith("lokalne")) {
-    strukturaKolumn = '["Obszar / Lokalizacja", "Data / Dzień", "Godzina", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wydarzenia"]';
+  if (typRaportu.startsWith("rodziny")) {
+    strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"]';
     
-    if (typRaportu === "lokalne_przeszle") {
-      instrukcjaZadaniowa = "RUNDA 1: Zakończone w ostatnich 7 dniach kluczowe inwestycje lub uchwały w Krakowie.";
-    } else if (typRaportu === "lokalne_trwajace") {
-      instrukcjaZadaniowa = "RUNDA 2 (KRAKÓW - WYSTAWY I ATRAKCJE TRWAJĄCE OBECNIE / DZISIAJ):\n" +
-        "- Wyszukaj ekspozycje stałe, interaktywne wystawy, jarmarki i trwające festiwale rodzinne (maksymalnie 15 pozycji).\n" +
-        "- W polu 'Data / Dzień' wpisz: 'Trwa' lub podaj dzisiejszą datę.";
-    } else if (typRaportu === "lokalne_przyszle") {
-      instrukcjaZadaniowa = "RUNDA 3 (KRAKÓW - WYDARZENIA ZAPLANOWANE NA NAJBLIŻSZE 7 DNI):\n" +
-        "- Wybierz najciekawsze konkretne wydarzenia: teatry dla dzieci, warsztaty, pikniki, spotkania plenerowe (maksymalnie 20 pozycji).\n" +
-        "- Skorzystaj z dostarczonej listy 'Dni nadchodzącego tygodnia'. Jeśli w tekście jest np. 'sobota', przypisz odpowiadającą jej datę YYYY-MM-DD.\n" +
-        "- Jeśli wydarzenie odbywa się w weekend, koniecznie je uwzględnij!";
+    if (typRaportu === "rodziny_trwajace") {
+      instrukcjaZadaniowa = "WYSTAWY I ATRAKCJE DLA RODZIN TRWAJĄCE OBECNIE: wyszukaj wystawy, spektakle, place zabaw w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'. W kolumnie 'Data / Dzień' wpisz: 'Trwa'.";
+    } else {
+      instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'.";
     }
   } else {
-    strukturaKolumn = '["Data wydarzenia", "Godzina", "Obszar / Zasięg", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo (wiek)", "Warunki wstępu", "Link do wiadomości"]';
-    
-    if (typRaportu === "globalne_przeszle") {
-      instrukcjaZadaniowa = "RUNDA 1 (RYNKI I GOSPODARKA - CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH):\n" +
-        "- Wybierz maksymalnie 15 kluczowych danych: stopy procentowe (RPP, Fed, EBC), inflacja, ruchy rynkowe.";
-    } else if (typRaportu === "globalne_trwajace") {
-      instrukcjaZadaniowa = "RUNDA 2 (RYNKI I GOSPODARKA - PROCESY TRWAJĄCE):\n" +
-        "- Trwające szczyty gospodarcze, konferencje technologiczne (maksymalnie 10 pozycji). W polu 'Data wydarzenia': 'Trwa'.";
+    strukturaKolumn = '["Obszar", "Gdzie", "Data", "Godzina", "Tytuł / Temat", "Kategoria", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
+
+    if (typRaportu === "lokalne_przeszle") {
+      instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (LOKALNIE): ważne uchwały, inwestycje, remonty lub wydarzenia. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
+    } else if (typRaportu === "lokalne_plany") {
+      instrukcjaZadaniowa = "CO JEST W PLANACH (LOKALNIE): zapowiedzi inwestycji, konsultacje, startujące remonty. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
+    } else if (typRaportu === "globalne_przeszle") {
+      instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (KRAJ/ŚWIAT): kluczowe dane rynkowe, banki centralne, geopolityka. W kolumnie 'Obszar' wpisz: 'Polska', 'Unia Europejska' lub 'Świat'.";
     } else if (typRaportu === "globalne_przyszle") {
-      instrukcjaZadaniowa = "RUNDA 3 (RYNKI I GOSPODARKA - KALENDARIUM NA NAJBLIŻSZE 7 DNI):\n" +
-        "- Kluczowe publikacje danych (CPI, PKB), posiedzenia banków centralnych (maksymalnie 15 pozycji).";
+      instrukcjaZadaniowa = "CO JEST W PLANACH (KRAJ/ŚWIAT): zaplanowane publikacje danych makro (CPI, PKB), posiedzenia stóp, szczyty. W kolumnie 'Obszar' wpisz: 'Polska', 'Unia Europejska' lub 'Świat'.";
     }
   }
 
   let systemPrompt = 
-    "Jesteś precyzyjnym asystentem analitycznym. Zwracaj wyłącznie zwięzłe, wyselekcjonowane dane.\n\n" +
+    "Jesteś precyzyjnym asystentem analitycznym. Wybieraj wyłącznie najważniejsze pozycje (maksymalnie po 6-8 wpisów).\n\n" +
     kontekstCzasowy + "\n\n" +
     filtrProfilu + "\n\n" +
     instrukcjaZadaniowa + "\n\n" +
-    "REGUŁY KALENDARZOWE:\n" +
-    "1. Format daty: YYYY-MM-DD, zakres 'YYYY-MM-DD - YYYY-MM-DD' lub 'Trwa'.\n" +
-    "2. Ekstrakcja linku: W ostatniej kolumnie podaj bezpośredni link do artykułu znaleziony w tekście.\n" +
-    "3. Zwięzłość: Ogranicz streszczenie do 1-2 konkretnych zdań, aby nie przekraczać limitu tokenów.\n\n" +
-    "Przeanalizuj treść ze źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
-    "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Pola w wierszu muszą ściśle odpowiadać: " + strukturaKolumn + ". Jeśli brak pozycji, zwróć: {\"dane\": []}.";
+    "REGUŁY DOTYCZĄCE KOLUMN:\n" +
+    "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
+    "2. 'Gdzie': dokładne, konkretne miejsce wydarzenia (np. 'Teatr Groteska', 'Krakowski Park Technologiczny', 'Rynek', 'Bruksela'). JEŚLI MIEJSCE PUNKTOWE NIE JEST PODANE LUB DOTYCZY CAŁEGO OBSZARU/KRAJU - POZOSTAW TO POLE CAŁKOWICIE PUSTE (\"\").\n" +
+    "3. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
+    "4. W kolumnie 'Link' umieść bezpośredni adres [Link: ...].\n\n" +
+    "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
+    "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu: " + strukturaKolumn + ".";
 
   const payload = {
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij najważniejsze pozycje w formacie JSON." }
+      { role: "user", content: "Wyodrębnij pozycje w formacie JSON." }
     ],
     response_format: { type: "json_object" },
     temperature: 0.1,
-    max_tokens: 8192 // Podwyższony limit tokenów eliminujący ucinanie JSON
+    max_tokens: 4096
   };
 
   try {
@@ -558,23 +471,17 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     }
 
     let content = jsonResp.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
-    
-    // Bezpieczne parsowanie z fallbackiem w razie ucięcia
     return bezpiecznyParseJson(content);
   } catch (e) {
-    Logger.log("Błąd zapytania DeepSeek: " + e.message);
+    Logger.log("Błąd DeepSeek: " + e.message);
     return [];
   }
 }
 
-/**
- * Bezpieczne parsowanie JSON - naprawia ucięty ciąg znaków w razie osiągnięcia limitu
- */
 function bezpiecznyParseJson(surowyTekst) {
   try {
     return JSON.parse(surowyTekst).dane || [];
   } catch (e) {
-    // Próba odzyskania dotychczas w pełni sparsowanych wierszy tablicy
     try {
       let idxDanych = surowyTekst.indexOf('"dane"');
       if (idxDanych !== -1) {
@@ -586,241 +493,127 @@ function bezpiecznyParseJson(surowyTekst) {
         }
       }
     } catch (e2) {}
-    Logger.log("Nie udało się odzyskać uszkodzonego JSON: " + e.message);
     return [];
   }
 }
 
-function znajdzPoleDatyWWierszu(row) {
-  if (!row || !Array.isArray(row)) return "";
-  for (let i = 0; i < Math.min(row.length, 4); i++) {
-    let komorka = String(row[i] || "").trim();
-    if (/\b\d{4}-\d{2}-\d{2}\b/.test(komorka) || /\b\d{2}\.\d{2}\.\d{4}\b/.test(komorka)) {
-      return komorka;
-    }
-    if (/trwa|dzisiaj|bieżący|ostatni/i.test(komorka)) {
-      return komorka;
-    }
+// ============================================================================
+// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE
+// ============================================================================
+
+function doGet(e) {
+  let parametry = e ? e.parameter : null;
+  let email = parametry ? parametry.email : null;
+  let akcja = parametry ? parametry.action : null;
+
+  if (akcja === "unsubscribe" && email) {
+    let sukces = usunAdresEmailZPliku("Automation", "Migawka Wydarzeń", "emails.txt", email.trim());
+    let tytul = sukces ? "Wypisano z subskrypcji" : "Wystąpił błąd";
+    let kolor = sukces ? "#059669" : "#dc2626";
+    let komunikat = sukces 
+      ? `Twój adres <strong>${email}</strong> został pomyślnie usunięty z listy odbiorców.` 
+      : `Nie udało się usunąć adresu <strong>${email}</strong>.`;
+
+    let html = generujKomunikatKartyHtml(tytul, kolor, komunikat);
+    return HtmlService.createHtmlOutput(html)
+      .setTitle(tytul)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
-  return String(row[0] || "");
+
+  return HtmlService.createHtmlOutput(generujFormularzZapisuHtml())
+    .setTitle("Zapisz się do Migawki Wydarzeń")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-function czyDataWMiasteczkuCzasowym(dataStr, typOkna, dzisiaj, przed7Dni, za7Dni) {
-  if (!dataStr) return false;
-  let str = String(dataStr).trim();
-
-  if (str.toLowerCase().includes("trwa") || str.toLowerCase().includes("dzisiaj") || str.toLowerCase().includes("bieżący")) {
-    return (typOkna === "trwajace" || typOkna === "przyszle");
+function doPost(e) {
+  let postData = e ? e.parameter : null;
+  if (!postData) {
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Brak danych." })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  let match = str.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-  if (!match) {
-    let matchPL = str.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/);
-    if (matchPL) {
-      match = [null, matchPL[3], matchPL[2], matchPL[1]];
-    } else {
-      return true;
-    }
+  let email = postData.email ? postData.email.trim() : "";
+  let captchaToken = postData["cf-turnstile-response"] || postData["g-recaptcha-response"] || "";
+
+  if (!zweryfikujCaptcha(captchaToken)) {
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Błąd weryfikacji Captcha." })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  let rok = parseInt(match[1], 10);
-  let miesiac = parseInt(match[2], 10) - 1;
-  let dzien = parseInt(match[3], 10);
-
-  let dataWydarzenia = new Date(rok, miesiac, dzien);
-  dataWydarzenia.setHours(0, 0, 0, 0);
-
-  let d0 = new Date(dzisiaj); d0.setHours(0, 0, 0, 0);
-  let dMinus7 = new Date(przed7Dni); dMinus7.setHours(0, 0, 0, 0);
-  let dPlus7 = new Date(za7Dni); dPlus7.setHours(23, 59, 59, 999);
-
-  if (typOkna === "przeszle") {
-    return dataWydarzenia >= dMinus7 && dataWydarzenia <= d0;
-  } else if (typOkna === "trwajace") {
-    return dataWydarzenia.getTime() === d0.getTime() || str.toLowerCase().includes("trwa");
-  } else if (typOkna === "przyszle") {
-    return dataWydarzenia >= d0 && dataWydarzenia <= dPlus7;
+  if (!email || !email.includes("@")) {
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Niepoprawny e-mail." })).setMimeType(ContentService.MimeType.JSON);
   }
-  return false;
+
+  let wynik = dodajAdresEmailDoPliku("Automation", "Migawka Wydarzeń", "emails.txt", email);
+  return ContentService.createTextOutput(JSON.stringify({ 
+    sukces: wynik.sukces, 
+    komunikat: wynik.sukces ? `Adres zapisany!` : (wynik.duplikat ? "Adres już znajduje się na liście." : "Błąd zapisu.") 
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
-function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
-  let domain = "";
+function zweryfikujCaptcha(token) {
+  const secretKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SECRET_KEY");
+  if (!secretKey || secretKey === "TWÓJ_SECRET_KEY_CAPTCHA") return true;
+  if (!token) return false;
+
   try {
-    let match = baseUrl.match(/^(https?:\/\/[^\/]+)/);
-    if (match) domain = match[1];
-  } catch (e) {}
-
-  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
-  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
-  text = text.replace(/<\/(div|p|li|article|section|tr|h\d)>/gi, "\n");
-
-  text = text.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, function(match, href, anchorText) {
-    let czystyAnchor = anchorText.replace(/<[^>]+>/g, "").trim();
-    if (!czystyAnchor || czystyAnchor.length < 3) return "";
-    
-    let pelnyUrl = href;
-    if (href.startsWith("/")) {
-      pelnyUrl = domain + href;
-    } else if (!href.startsWith("http")) {
-      pelnyUrl = baseUrl.replace(/\/?$/, "/") + href;
-    }
-    
-    if (pelnyUrl.includes("javascript:") || pelnyUrl.includes("#")) return czystyAnchor;
-    return czystyAnchor + " [Link: " + pelnyUrl + "] ";
-  });
-
-  text = text.replace(/<[^>]+>/g, " ");
-  return text.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
-}
-
-// ============================================================================
-// 4. GENEROWANIE TABEL I WYSYŁKA EMAIL (BEZ PDF)
-// ============================================================================
-
-function generujCialoRaportuEmailHtml(lokalne, globalnePrzeszle, globalnePrzyszle, naglowkiLokalne, naglowkiGlobalne, dzisiajStr) {
-  let html = `
-    <div style="font-family: Arial, sans-serif; color: #1e293b;">
-      <h2 style="font-size: 18px; color: #0f172a; margin-bottom: 4px;">🎯 Migawka Wydarzeń (${dzisiajStr})</h2>
-      <p style="font-size: 12px; color: #64748b; margin-top: 0; margin-bottom: 16px;">
-        Wyselekcjonowane wydarzenia rodzinne w Krakowie oraz kluczowe informacje makroekonomiczne.
-      </p>
-
-      <h3 style="font-size: 14px; color: #047857; border-bottom: 2px solid #047857; padding-bottom: 4px; margin-bottom: 6px;">
-        🎠 1. Lokalne — Trwające i przyszłe (w tym tygodniu)
-      </h3>
-      ${budujTabeleEmail(lokalne, naglowkiLokalne, "#047857", "#ecfdf5")}
-
-      <h3 style="font-size: 14px; color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 4px; margin-bottom: 6px; margin-top: 24px;">
-        📊 2. Świat — Co się wydarzyło (Minione 7 dni)
-      </h3>
-      ${budujTabeleEmail(globalnePrzeszle, naglowkiGlobalne, "#4338ca", "#e0e7ff")}
-
-      <h3 style="font-size: 14px; color: #b45309; border-bottom: 2px solid #b45309; padding-bottom: 4px; margin-bottom: 6px; margin-top: 24px;">
-        🔮 3. Świat — Co się wydarzy (Trwające procesy & Najbliższe 7 dni)
-      </h3>
-      ${budujTabeleEmail(globalnePrzyszle, naglowkiGlobalne, "#b45309", "#fef3c7")}
-    </div>
-  `;
-  return html;
-}
-
-function budujTabeleEmail(dane, naglowki, kolorGlowny, kolorWierszaAlt) {
-  if (!dane || dane.length === 0) {
-    return `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin-bottom: 16px;">Brak odnotowanych pozycji w tej kategorii.</p>`;
-  }
-
-  let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 10px; margin-bottom: 16px;">`;
-  
-  html += `<thead><tr style="background-color: ${kolorGlowny}; color: #ffffff;">`;
-  naglowki.forEach(naglowek => {
-    html += `<th style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600;">${naglowek}</th>`;
-  });
-  html += `</tr></thead><tbody>`;
-
-  dane.forEach((wiersz, idx) => {
-    let tlo = (idx % 2 === 1) ? `background-color: ${kolorWierszaAlt};` : `background-color: #ffffff;`;
-    html += `<tr style="${tlo}">`;
-    wiersz.forEach((komorka, colIdx) => {
-      let tekst = String(komorka || "—").trim();
-      let jestOstatniaKolumna = (colIdx === wiersz.length - 1);
-      
-      if (jestOstatniaKolumna || tekst.includes("http")) {
-        tekst = formatujKomorkeZLinkiem(tekst, kolorGlowny);
-      }
-      
-      html += `<td style="border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; line-height: 1.35;">${tekst}</td>`;
+    let resp = UrlFetchApp.fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "post",
+      payload: { secret: secretKey, response: token },
+      muteHttpExceptions: true
     });
-    html += `</tr>`;
-  });
-
-  html += `</tbody></table>`;
-  return html;
+    return JSON.parse(resp.getContentText()).success === true;
+  } catch (err) {
+    return false;
+  }
 }
 
-function formatujKomorkeZLinkiem(tekst, kolor) {
-  if (!tekst || tekst === "—") return "—";
-
-  let matchUrl = tekst.match(/https?:\/\/[^\s"'<>\)]+/);
-  if (matchUrl) {
-    let url = matchUrl[0];
-    let etykieta = "Przejdź do źródła ↗";
-    
-    if (tekst.includes("—")) {
-      etykieta = tekst.split("—")[0].trim();
-    } else if (tekst.includes("[")) {
-      etykieta = tekst.split("[")[0].trim();
-    }
-
-    return `<a href="${url}" target="_blank" style="background-color: ${kolor}; color: #ffffff; text-decoration: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block;">${etykieta} ↗</a>`;
-  }
-  return tekst;
-}
-
-function wyslijRaportEmailTabelaryczny(lokalne, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr, listaOdbiorcow) {
-  let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
-  if (odbiorcy.length === 0) {
-    Logger.log("Brak odbiorców do wysyłki.");
-    return;
-  }
-
-  let temat = "🎯 Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
-
+function generujFormularzZapisuHtml() {
+  const siteKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SITE_KEY") || "";
   let webAppUrl = "";
-  try {
-    webAppUrl = ScriptApp.getService().getUrl();
-  } catch (e) {
-    Logger.log("Web App nie został jeszcze wdrożony: " + e.message);
-  }
+  try { webAppUrl = ScriptApp.getService().getUrl(); } catch(e) {}
 
-  let cialoRaportuHtml = generujCialoRaportuEmailHtml(lokalne, globalnePrzeszle, globalnePrzyszle, naglowki1, naglowki2, dzisiajStr);
-
-  odbiorcy.forEach((adresat, index) => {
-    let emailCzysty = adresat.trim();
-    if (!emailCzysty) return;
-
-    let unsubscribeLink = webAppUrl 
-      ? `${webAppUrl}?action=unsubscribe&email=${encodeURIComponent(emailCzysty)}` 
-      : "#";
-
-    let stopkaHtml = `
-      <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 14px; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.6;">
-        Raport wygenerowany przez DeepSeek AI. Wszystkie pozycje zawierają bezpośrednie odnośniki do źródeł.<br>
-        Otrzymujesz tę wiadomość, ponieważ Twój adres (${emailCzysty}) znajduje się na liście subskrybentów.<br>
-        <a href="${unsubscribeLink}" target="_blank" style="color: #64748b; text-decoration: underline; font-weight: bold; margin-top: 4px; display: inline-block;">
-          Wypisz się z subskrypcji
-        </a>
+  return `
+    <!DOCTYPE html>
+    <html lang="pl">
+    <head>
+      <meta charset="UTF-8">
+      <title>Zapisz się do Migawki Wydarzeń</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; }
+        .card { background: #ffffff; padding: 32px; border-radius: 10px; max-width: 400px; width: 100%; border: 1px solid #e2e8f0; }
+        input[type="email"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; margin-bottom: 12px; box-sizing: border-box; }
+        button { width: 100%; background: #0284c7; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 5px; cursor: pointer; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h2>🎯 Migawka Wydarzeń</h2>
+        <form id="f">
+          <input type="email" id="email" name="email" placeholder="twoj@email.com" required>
+          <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
+          <button type="submit" style="margin-top:10px;">Zapisz się</button>
+        </form>
       </div>
-    `;
+      <script>
+        document.getElementById("f").addEventListener("submit", function(e) {
+          e.preventDefault();
+          fetch("${webAppUrl}", { method: "POST", body: new FormData(this) })
+            .then(r => r.json())
+            .then(d => alert(d.komunikat));
+        });
+      </script>
+    </body>
+    </html>
+  `;
+}
 
-    let emailHtml = `
-      <div style="max-width: 980px; margin: 0 auto; background-color: #ffffff; padding: 15px;">
-        ${cialoRaportuHtml}
-        ${stopkaHtml}
-      </div>
-    `;
-
-    let emailOptions = {
-      to: emailCzysty,
-      subject: temat,
-      htmlBody: emailHtml
-    };
-
-    try {
-      MailApp.sendEmail(emailOptions);
-      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano raport do: ${emailCzysty}`);
-      
-      if (index < odbiorcy.length - 1) {
-        Utilities.sleep(500);
-      }
-    } catch (err) {
-      Logger.log(`Błąd podczas wysyłki do ${emailCzysty}: ${err.message}`);
-    }
-  });
+function generujKomunikatKartyHtml(tytul, kolor, tresc) {
+  return `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:40px;"><h2 style="color:${kolor}">${tytul}</h2><p>${tresc}</p></body></html>`;
 }
 
 // ============================================================================
-// 5. FUNKCJE POMOCNICZE
+// FUNKCJE POMOCNICZE
 // ============================================================================
 
 function sortujIGrupujWyniki(dane, indeksGlowny, indeksPodrzedny) {
@@ -847,35 +640,95 @@ function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
   sheet.autoResizeColumns(1, nagłówki.length);
 }
 
+function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
+  let domain = "";
+  try {
+    let match = baseUrl.match(/^(https?:\/\/[^\/]+)/);
+    if (match) domain = match[1];
+  } catch (e) {}
+
+  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+                 .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+                 .replace(/<\/(div|p|li|article|section|tr|h\d)>/gi, "\n");
+
+  text = text.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, function(match, href, anchorText) {
+    let czystyAnchor = anchorText.replace(/<[^>]+>/g, "").trim();
+    if (!czystyAnchor || czystyAnchor.length < 3) return "";
+    let pelnyUrl = href;
+    if (href.startsWith("/")) pelnyUrl = domain + href;
+    else if (!href.startsWith("http")) pelnyUrl = baseUrl.replace(/\/?$/, "/") + href;
+    if (pelnyUrl.includes("javascript:") || pelnyUrl.includes("#")) return czystyAnchor;
+    return czystyAnchor + " [Link: " + pelnyUrl + "] ";
+  });
+
+  return text.replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
+}
+
+function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, nowyEmail) {
+  try {
+    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!f1.hasNext()) return { sukces: false };
+    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
+    if (!f2.hasNext()) return { sukces: false };
+    let podfolder = f2.next();
+    let pliki = podfolder.getFilesByName(nazwaPliku);
+    let plik = pliki.hasNext() ? pliki.next() : podfolder.createFile(nazwaPliku, "");
+
+    let suroweWpisy = plik.getBlob().getDataAsString().split(/[\r\n,;]+/);
+    let unikalne = [];
+    let juzJest = false;
+
+    suroweWpisy.forEach(w => {
+      let adr = w.trim();
+      if (adr.includes("@")) {
+        if (adr.toLowerCase() === nowyEmail.toLowerCase()) juzJest = true;
+        unikalne.push(adr);
+      }
+    });
+
+    if (juzJest) return { sukces: false, duplikat: true };
+    unikalne.push(nowyEmail.toLowerCase());
+    plik.setContent(unikalne.join("\n"));
+    return { sukces: true };
+  } catch (err) {
+    return { sukces: false };
+  }
+}
+
+function usunAdresEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, emailDoUsuniecia) {
+  try {
+    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!f1.hasNext()) return false;
+    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
+    if (!f2.hasNext()) return false;
+    let pliki = f2.next().getFilesByName(nazwaPliku);
+    if (!pliki.hasNext()) return false;
+    let plik = pliki.next();
+
+    let suroweWpisy = plik.getBlob().getDataAsString().split(/[\r\n,;]+/);
+    let nowaLista = suroweWpisy.map(s => s.trim()).filter(adr => adr.includes("@") && adr.toLowerCase() !== emailDoUsuniecia.toLowerCase());
+    plik.setContent(nowaLista.join("\n"));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 function wczytajAdresyEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
   let zawartosc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
   if (!zawartosc) return null;
-
-  let suroweWpisy = zawartosc.split(/[\r\n,;]+/);
-  let adresy = [];
-
-  suroweWpisy.forEach(wpis => {
-    let email = wpis.trim();
-    if (email && email.includes("@") && email.includes(".")) {
-      adresy.push(email);
-    }
-  });
-
-  return [...new Set(adresy)];
+  return [...new Set(zawartosc.split(/[\r\n,;]+/).map(s => s.trim()).filter(s => s.includes("@")))];
 }
 
 function wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
   try {
-    let folderyGlowne = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
-    if (!folderyGlowne.hasNext()) return null;
-    let folderGlowny = folderyGlowne.next();
-    let podfoldery = folderGlowny.getFoldersByName(nazwaPodfolderu);
-    if (!podfoldery.hasNext()) return null;
-    let podfolder = podfoldery.next();
-    let pliki = podfolder.getFilesByName(nazwaPliku);
+    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!f1.hasNext()) return null;
+    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
+    if (!f2.hasNext()) return null;
+    let pliki = f2.next().getFilesByName(nazwaPliku);
     return pliki.hasNext() ? pliki.next().getBlob().getDataAsString() : null;
   } catch (e) {
-    Logger.log("Błąd odczytu pliku: " + e.message);
     return null;
   }
 }
@@ -886,7 +739,6 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
   try {
     return JSON.parse(tresc);
   } catch (e) {
-    Logger.log("Błąd parsowania JSON: " + e.message);
     return null;
   }
 }
