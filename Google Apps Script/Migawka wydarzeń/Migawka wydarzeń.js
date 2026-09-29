@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - INDYWIDUALNA PALETA KOLORÓW DLA KAŻDEJ SEKCJI I NAGŁÓWKA
+ * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z FORMATEM DATY: DD.MM.RRRR dzień_tygodnia
  */
 
 function generujRaportWiadomosci() {
@@ -138,12 +138,26 @@ function generujRaportWiadomosci() {
   });
   sekcja3_WPlanach = Array.from(mapaPlany.values());
 
+  // Uzupełnienie dnia tygodnia w kolumnie z datą (indeks 2: 'Data / Dzień' lub 'Data')
+  sekcja1_Rodziny = sekcja1_Rodziny.map(row => {
+    if (row && row.length > 2) row[2] = normalizujDateZDniemTygodnia(row[2]);
+    return row;
+  });
+  sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.map(row => {
+    if (row && row.length > 2) row[2] = normalizujDateZDniemTygodnia(row[2]);
+    return row;
+  });
+  sekcja3_WPlanach = sekcja3_WPlanach.map(row => {
+    if (row && row.length > 2) row[2] = normalizujDateZDniemTygodnia(row[2]);
+    return row;
+  });
+
   sortujIGrupujWyniki(sekcja1_Rodziny, 0, 1);
   sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
   sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
   let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   zapiszDoArkusza(ss, "1. Wydarzenia dla Rodzin", sekcja1_Rodziny, naglowkiArkuszRodziny);
   zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
@@ -161,6 +175,53 @@ function generujRaportWiadomosci() {
     mapaUrlIkon,
     urlLogo
   );
+}
+
+// ============================================================================
+// FORMATOWANIE DATY Z DNIEM TYGODNIA (np. 24.10.2026 sobota)
+// ============================================================================
+
+function normalizujDateZDniemTygodnia(wartoscDaty) {
+  if (!wartoscDaty) return "—";
+  let tekst = String(wartoscDaty).trim();
+  if (tekst === "—" || tekst.toLowerCase() === "trwa") return tekst;
+
+  const dniTygodniaPL = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+
+  // Jeśli zawiera już nazwę dnia tygodnia, zwracamy bez modyfikacji
+  for (let d of dniTygodniaPL) {
+    if (tekst.toLowerCase().includes(d)) return tekst;
+  }
+
+  let rok, miesiac, dzien;
+
+  // Wzorzec RRRR-MM-DD
+  let matchISO = tekst.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (matchISO) {
+    rok = parseInt(matchISO[1], 10);
+    miesiac = parseInt(matchISO[2], 10);
+    dzien = parseInt(matchISO[3], 10);
+  } else {
+    // Wzorzec DD.MM.RRRR
+    let matchPL = tekst.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (matchPL) {
+      dzien = parseInt(matchPL[1], 10);
+      miesiac = parseInt(matchPL[2], 10);
+      rok = parseInt(matchPL[3], 10);
+    }
+  }
+
+  if (rok && miesiac && dzien) {
+    let obiektData = new Date(rok, miesiac - 1, dzien);
+    if (!isNaN(obiektData.getTime())) {
+      let dStr = String(dzien).padStart(2, "0");
+      let mStr = String(miesiac).padStart(2, "0");
+      let dzienNazwa = dniTygodniaPL[obiektData.getDay()];
+      return `${dStr}.${mStr}.${rok} ${dzienNazwa}`;
+    }
+  }
+
+  return tekst;
 }
 
 // ============================================================================
@@ -242,15 +303,11 @@ function wczytajIkonyHerbowZDrive() {
 // GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z DEFINIOWANĄ PALETĄ BARW)
 // ============================================================================
 
-// ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (ZAMIENIONE KOLORY TABELI 1 I 2)
-// ============================================================================
-
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
   mapaUrlIkon = mapaUrlIkon || {};
 
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  const resztaKolumnOgolne = ["Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  const resztaKolumnOgolne = ["Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
   const konfiguracjaRodziny = [
     { nazwaPliku: "01_herb_krakowa.jpg", etykieta: "Kraków", filtr: ["kraków", "krakow"] },
@@ -365,7 +422,6 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
 
   let html = `<table style="border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 4px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">`;
   
-  // Górna krawędź nagłówka z 3px akcentem dedykowanym danej tabeli
   html += `<thead><tr style="background-color: #ffffff; color: #0f172a; border-top: 3px solid ${kolorAkcentu}; border-bottom: 2px solid #cbd5e1;">`;
   naglowki.forEach((naglowek, idx) => {
     let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 130px;" : "";
@@ -485,10 +541,10 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     if (typRaportu === "rodziny_trwajace") {
       instrukcjaZadaniowa = "WYSTAWY I ATRAKCJE DLA RODZIN TRWAJĄCE OBECNIE: wyszukaj wystawy, spektakle, place zabaw w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'. W kolumnie 'Data / Dzień' wpisz: 'Trwa'.";
     } else {
-      instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'.";
+      instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'. W kolumnie 'Data / Dzień' podaj datę (np. 2026-10-24 lub 24.10.2026).";
     }
   } else {
-    strukturaKolumn = '["Obszar", "Gdzie", "Data", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
+    strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
 
     if (typRaportu === "lokalne_przeszle") {
       instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (LOKALNIE): ważne uchwały, inwestycje, remonty lub wydarzenia. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
@@ -509,9 +565,10 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
     "REGUŁY DOTYCZĄCE KOLUMN:\n" +
     "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
     "2. 'Gdzie': dokładne miejsce (np. 'Teatr Groteska', 'Fort Borek'). Jeśli dotyczy całego obszaru lub brak punktu, wpisz '—'.\n" +
-    "3. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
-    "4. 'Warunki wstępu': wpisz 'Bezpłatne', 'Bilety' lub 'Rejestracja'.\n" +
-    "5. W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
+    "3. 'Data / Dzień': wpisz datę (np. 2026-10-24 lub 24.10.2026) albo 'Trwa'.\n" +
+    "4. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
+    "5. 'Warunki wstępu': wpisz 'Bezpłatne', 'Bilety' lub 'Rejestracja'.\n" +
+    "6. W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
     "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
     "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu musi ściśle odpowiadać tablicy: " + strukturaKolumn + ".";
 
