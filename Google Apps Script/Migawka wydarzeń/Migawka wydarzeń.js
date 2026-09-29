@@ -1,5 +1,5 @@
 /**
- * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z POPRAWIONĄ OBSŁUGĄ URL, BIAŁYMI NAGŁÓWKAMI I HERBAMI RETINA
+ * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z LOGO Z DYSKU GOOGLE (BEZ IKONY TARCZY ZE STRZAŁĄ)
  */
 
 function generujRaportWiadomosci() {
@@ -150,6 +150,7 @@ function generujRaportWiadomosci() {
   zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
 
   let mapaUrlIkon = wczytajIkonyHerbowZDrive();
+  let urlLogo = wczytajLogoZDrive();
 
   wyslijRaportEmailTabelaryczny(
     sekcja1_Rodziny, 
@@ -157,8 +158,35 @@ function generujRaportWiadomosci() {
     sekcja3_WPlanach, 
     dzisiajStr, 
     odbiorcyEmail, 
-    mapaUrlIkon
+    mapaUrlIkon,
+    urlLogo
   );
+}
+
+// ============================================================================
+// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/LOGO.jpg)
+// ============================================================================
+
+function wczytajLogoZDrive() {
+  try {
+    let fGlowny = DriveApp.getFoldersByName("Automation");
+    if (!fGlowny.hasNext()) return "";
+    let fMigawka = fGlowny.next().getFoldersByName("Migawka Wydarzeń");
+    if (!fMigawka.hasNext()) return "";
+    let fBrand = fMigawka.next().getFoldersByName("Brand");
+    if (!fBrand.hasNext()) return "";
+    let folderBrand = fBrand.next();
+
+    let pliki = folderBrand.getFilesByName("LOGO.jpg");
+    if (pliki.hasNext()) {
+      let plik = pliki.next();
+      plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w400";
+    }
+  } catch (e) {
+    Logger.log("Błąd odczytu LOGO.jpg: " + e.message);
+  }
+  return "";
 }
 
 // ============================================================================
@@ -211,10 +239,10 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (BIAŁE TŁO + AKCENT LINII)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z LOGO, BEZ TARCZY ZE STRZAŁĄ)
 // ============================================================================
 
-function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon) {
+function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
   mapaUrlIkon = mapaUrlIkon || {};
 
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
@@ -234,14 +262,23 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
     { nazwaPliku: "10_symbol_swiat_globus.jpg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
   ];
 
+  let logoTag = urlLogo ? `<img src="${urlLogo}" alt="Logo" style="height: 38px; width: auto; vertical-align: middle; margin-right: 12px; border-radius: 4px;" />` : "";
+
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 960px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
-      <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 4px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-        🎯 Migawka Wydarzeń (${dzisiajStr})
-      </h2>
-      <p style="font-size: 12px; color: #64748b; margin-top: 4px; margin-bottom: 24px;">
-        Cotygodniowy raport wydarzeń i informacji.
-      </p>
+      
+      <!-- NAGŁÓWEK GŁÓWNY Z LOGO -->
+      <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center;">
+        ${logoTag}
+        <div>
+          <h2 style="font-size: 20px; color: #0f172a; margin: 0; padding: 0; font-weight: 700;">
+            Migawka Wydarzeń (${dzisiajStr})
+          </h2>
+          <p style="font-size: 12px; color: #64748b; margin: 2px 0 0 0;">
+            Cotygodniowy raport wydarzeń i informacji.
+          </p>
+        </div>
+      </div>
 
       <!-- 1. WYDARZENIA DLA RODZIN -->
       <div style="margin-bottom: 32px;">
@@ -359,7 +396,6 @@ function wyodrebnijCzystyUrl(tekst) {
   if (!tekst) return "";
   let str = String(tekst).trim();
 
-  // Naprawa zdublowanych domen typu https://domena.pl//www.inna.pl...
   let matchZdublowany = str.match(/https?:\/\/[^\/]+\/+(?:https?:\/\/|www\.)([^\s"'<>\)\]]+)/i);
   if (matchZdublowany) {
     return "https://" + matchZdublowany[1].replace(/[.,;:\)\]>]+$/, "").trim();
@@ -383,18 +419,19 @@ function formatujKomorkeZLinkiem(tekst, kolor) {
   return "—";
 }
 
-function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaOdbiorcow, mapaUrlIkon) {
+function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaOdbiorcow, mapaUrlIkon, urlLogo) {
   let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
   if (odbiorcy.length === 0) return;
 
-  let temat = "🎯 Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
+  // Temat wiadomości BEZ emotikony tarczy ze strzałą
+  let temat = "Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
 
   let webAppUrl = "";
   try {
     webAppUrl = ScriptApp.getService().getUrl();
   } catch (e) {}
 
-  let cialoRaportuHtml = generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon);
+  let cialoRaportuHtml = generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo);
 
   odbiorcy.forEach((adresat, index) => {
     let emailCzysty = adresat.trim();
@@ -545,7 +582,7 @@ function bezpiecznyParseJson(surowyTekst) {
 }
 
 // ============================================================================
-// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE
+// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE (BEZ EMOTIKON)
 // ============================================================================
 
 function doGet(e) {
@@ -635,7 +672,7 @@ function generujFormularzZapisuHtml() {
     </head>
     <body>
       <div class="card">
-        <h2>🎯 Migawka Wydarzeń</h2>
+        <h2 style="margin-top:0; color:#0f172a;">Migawka Wydarzeń</h2>
         <form id="f">
           <input type="email" id="email" name="email" placeholder="twoj@email.com" required>
           <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
