@@ -1,69 +1,127 @@
-# RSS/Web News & Events Aggregator & LLM Filter
+# Migawka Wydarzeń – RSS/Web News & Events Aggregator & LLM Filter
 
-Automated system implemented in Google Apps Script that aggregates, intelligently filters, categorizes, and formats news and event data from predefined web sources using the **DeepSeek AI API**. The output is dynamically updated across three dedicated tabs in a Google Sheets workbook and dispatched as a clean, color-coded HTML summary report directly to your email.
+Zautomatyzowany, inteligentny system agregacji, analityki i dystrybucji informacji zrealizowany w środowisku **Google Apps Script**, wspierany przez silnik sztucznej inteligencji **DeepSeek AI API** (`deepseek-chat`).
 
----
-
-## How It Works
-
-1. **Web Scraping:** The script fetches raw HTML headers and links from trusted local and global source lists directly from their main pages[cite: 4].
-2. **AI-Powered Filtering & Temporal Analysis:** Extracted raw text snippets, along with strict calendar boundaries (current date, past 7 days, next 7 days), are sent to the **DeepSeek AI API** (`deepseek-chat`)[cite: 4].
-3. **Smart Categorization & Layout:**
-   - **Section 1 (Local, Community, Children & Culture):** Filters exclusively for *upcoming* events within the next 7 days, sorted alphabetically by location[cite: 4].
-   - **Section 2 (Global, Politics, Economy - Past):** Pulls significant factual updates and macro data from the *past 7 days* alongside exact article/event dates[cite: 4].
-   - **Section 3 (Global, Politics, Economy - Future):** Extracts upcoming announcements and scheduled events for the *next 7 days* with target dates[cite: 4].
-4. **Delivery & Formatting:** Clears and overwrites Google Sheets tabs automatically and sends an HTML digest via email with a dynamically generated date in the subject line (e.g., `📰 Migawka wydarzeń (YYYY-MM-DD)`)[cite: 4].
+System cyklicznie monitoruje wskazane serwisy lokalne (Kraków, Myślenice, Tarnów, Małopolska) oraz globalne/krajowe (gospodarka, finanse, geopolityka), usuwa szum informacyjny i clickbait, a wyselekcjonowane wydarzenia porządkuje w arkuszu **Google Sheets** oraz rozsyła w responsywnym formacie HTML na skrzynki e-mail subskrybentów. Rozwiązanie posiada zintegrowaną aplikację internetową (**Google Apps Script Web App**) z formularzem zapisu, wyborem preferencji raportów, obsługą rezygnacji (`unsubscribe`) oraz weryfikacją anty-spamową Cloudflare Turnstile.
 
 ---
 
-## Prerequisites
+## 🚀 Główne funkcjonalności
 
-- A Google Account with access to Google Sheets and Google Apps Script[cite: 4].
-- A valid **DeepSeek API Key** ([Get one here](https://platform.deepseek.com/))[cite: 4].
+1. **Agregacja i inteligentny Web Scraping:**
+   - Wielowątkowe pobieranie zawartości stron za pomocą `UrlFetchApp.fetchAll` z emulacją nowoczesnego User-Agenta.
+   - Zaawansowane oczyszczanie kodu HTML ze znaczników skryptów i styli przy jednoczesnym zachowaniu bezpośrednich odnośników URL (konwersja linków relatywnych do absolutnych).
+2. **Zaawansowana analityka LLM (DeepSeek AI API):**
+   - Bezwzględne ramy kalendarzowe (dzień bieżący, okres minionych 7 dni, mapa 7 dni nadchodzącego tygodnia z dniami tygodnia).
+   - Rygorystyczny profil promptu eliminujący clickbait i plotki – preferowane konkretne, merytoryczne inicjatywy i decyzje rynkowo-gospodarcze.
+   - Wymuszone formatowanie strukturalne JSON (`{"dane": [[...], [...]]}`) oraz mechanizm `bezpiecznyParseJson` odzyskujący odpowiedzi w przypadku ucięcia strumienia.
+3. **Trzy sekcje tematyczne raportu:**
+   - **Sekcja 1: Wydarzenia dla Rodzin z Dziećmi (Kraków i Region):** bieżące wystawy stałe oraz zaplanowane spektakle, warsztaty i pikniki na kolejne 7 dni.
+   - **Sekcja 2: Co się wydarzyło w minionym tygodniu (Polska, Europa, Świat):** kluczowe dane makroekonomiczne, decyzje banków centralnych (RPP, EBC, FED), podatki i geopolityka.
+   - **Sekcja 3: Co jest w planach? (Kolejny tydzień):** publikacje wskaźników makro (CPI, PKB), posiedzenia stóp procentowych, zapowiedzi inwestycji.
+4. **Zarządzanie konfiguracją i danymi (Google Drive & Google Sheets):**
+   - Źródła ładowane dynamicznie z plików konfiguracyjnych JSON (`zrodla_lokalne.json`, `zrodla_globalne.json`) oraz pliku tekstowego `prompt_migawka_wydarzen.txt`.
+   - Nadpisywanie dedykowanych zakładek w arkuszu Google Sheets z formatowaniem nagłówków, stylizacją wierszy oraz automatycznym dopasowaniem szerokości kolumn.
+5. **Dystrybucja e-mail i personalizacja:**
+   - Obsługa preferencji subskrybentów: każdy odbiorca może otrzymywać tylko wydarzenia rodzinne, tylko przegląd rynkowo-światowy lub pełny pakiet.
+   - Dynamiczne pobieranie oficjalnych herbów miast i flag z Dysku Google i wstawianie ich do tabel e-mail.
+   - Dedykowany, bezpieczny link do natychmiastowego wypisania się (`unsubscribe`) na dole każdej wiadomości.
+6. **Aplikacja Webowa (Web App):**
+   - Nowoczesny, estetyczny formularz zapisu w HTML5/CSS3 z interaktywnym podglądem (modalem) przykładowego raportu.
+   - Integracja z Cloudflare Turnstile w celu ochrony przed botami.
+   - Baza subskrybentów prowadzona i aktualizowana w pliku tekstowym `emails.txt` w strukturze Google Drive.
 
 ---
 
-## Installation & Setup
+## 🛠️ Architektura plików na Dysku Google
 
-1. **Create a Google Sheet:** Go to [sheets.google.com](https://sheets.google.com/) and create a new spreadsheet[cite: 4].
-2. **Open Apps Script:** In your spreadsheet, click on **Extensions** > **Apps Script**[cite: 4].
-3. **Add the Script:** Copy and paste the provided code into `Code.gs`[cite: 4].
-4. **Configure Secure API Key (Script Properties):**
-   - Click on **Project Settings** (gear icon on the left sidebar)[cite: 4].
-   - Scroll down to **Script Properties** and click **Add script property**[cite: 4].
-   - **Property:** `DEEPSEEK_API_KEY`[cite: 4]
-   - **Value:** `your_deepseek_api_key_here`[cite: 4]
-   - Click **Save script properties**[cite: 4].
-5. **Run & Authorize:** Select the `generujRaportWiadomosci` function and click **Run** to grant necessary permissions[cite: 4].
-6. **Automate (Triggers):** Go to **Triggers** (clock icon) and set up a time-driven trigger (e.g., daily or weekly) to run the script automatically in the background.
+Skrypt wymaga utworzenia dedykowanego drzewa katalogów na Dysku Google:
 
----
-
-## Customization
-
-You can easily adjust the monitored URLs by editing the `SOURCES_LOKALNE` and `SOURCES_GLOBALNE` arrays at the beginning of the `generujRaportWiadomosci` function[cite: 4]:
-
-```javascript
-const SOURCES_LOKALNE = [
-  { url: "[https://your-source.pl/](https://your-source.pl/)", group: "Category/Region" },
-  // Add more sources here...
-];
+```text
+Dysk Google/
+└── Automation/
+    └── Migawka Wydarzeń/
+        ├── emails.txt                  # Baza subskrybentów (format: email;rodziny,swiat)
+        ├── prompt_migawka_wydarzen.txt # Filtr profilu i wytyczne promptu dla DeepSeek
+        ├── zrodla_lokalne.json         # Lista serwisów lokalnych (URL, metadane)
+        ├── zrodla_globalne.json        # Lista serwisów rynkowych i makroekonomicznych
+        └── Brand/
+            ├── Logo MW v2.jpg          # Logotyp projektu
+            └── ikony_herby_i_symbole/
+                └── JPG/                # Herby miast i symbole (01_herb_krakowa.jpg, itp.)
 ```
 
+---
 
-## Screenshots & Examples
+## ⚙️ Wdrożenie i konfiguracja
 
-### Migawka Wydarzen
-![PowerShell Output](assets/Migawka_Wydarzen.jpg)
+### 1. Wymagania wstępne
+- Konto Google z dostępem do Google Sheets, Google Drive oraz Google Apps Script.
+- Aktywny klucz API **DeepSeek** ze środków platformy ([platform.deepseek.com](https://platform.deepseek.com/)).
+- (Opcjonalnie) Klucze witryny **Cloudflare Turnstile** do formularza anty-spamowego.
 
-### Wydarzenia w arkuszu
-![HTML Report](assets/Migawka_Wydarzen_Gsheet.jpg)
+### 2. Konfiguracja właściwości projektu (Script Properties)
+W edytorze Apps Script przejdź do: **Ustawienia projektu** (ikona koła zębatego) > **Właściwości skryptu** i zdefiniuj klucze:
 
-### Apps Script Properties
-![PowerShell Output](assets/Apps_Script_Properties.jpg)
+| Właściwość | Wartość |
+| :--- | :--- |
+| `DEEPSEEK_API_KEY` | Twój klucz API DeepSeek (`sk-...`) |
+| `CAPTCHA_SITE_KEY` | *(Opcjonalnie)* Publiczny klucz strony Cloudflare Turnstile |
+| `CAPTCHA_SECRET_KEY` | *(Opcjonalnie)* Prywatny klucz weryfikacyjny Cloudflare Turnstile |
 
-### Migawka wydarzen email raport
-![HTML Report](assets/Migawka_wydarzen_email_raport.jpg)
+### 3. Wdrożenie jako aplikacja internetowa (Web App)
+1. W prawym górnym rogu edytora Apps Script kliknij **Wdróż** > **Nowe wdrożenie**.
+2. Jako typ wybierz **Aplikacja internetowa**.
+3. **Wykonaj jako:** *Ja (twój adres e-mail)*.
+4. **Kto ma dostęp:** *Każdy* (Anyone).
+5. Skopiowany adres URL wdrożenia obsługuje żądania GET (formularz zapisu i linki rezygnacji) oraz POST (zapis nowego adresu).
 
+### 4. Harmonogram automatyczny (Wyzwalacze)
+W menu **Wyzwalacze** (ikona zegara) dodaj trigger czasowy dla funkcji `generujRaportWiadomosci`:
+- Źródło: **Sterowane czasem**
+- Typ: **Licznik tygodniowy** (np. w każdy poniedziałek między 7:00 a 8:00 rano).
 
-Author & VersionAuthor: Roman Pindela (roman.pindela@gmail.com, GitHub)   Version: 1.2.0LicenseThis project is open-source and available for personal and commercial utilization.
+---
+
+## 🖼️ Screenshots
+
+### Publikacja na Google Sites
+![Publikacja na Google Sites](assets/Publikacja_na_google_sites.jpg)
+
+### Przegląd projektu – Migawka Wydarzeń
+![Migawka Wydarzeń](assets/Migawka_Wydarzen.jpg)
+
+### Witryna internetowa projektu (Google Sites)
+![Google Sites Website](assets/Google_sites_website.jpg)
+
+### Formularz zapisu na newsletter
+![Zapis na newsletter](assets/Zapis_na_newsletter.jpg)
+
+### Zarządzanie wdrożeniami (Managing Deployments)
+![Managing Deployments](assets/Managing%20deployments.jpg)
+
+### Potwierdzenie wypisania z subskrypcji
+![Wypisanie z subskrypcji](assets/Wypisanie%20z%20subskrypcji2.jpg)
+
+### Zestawienie w arkuszu Google Sheets
+![Migawka Wydarzeń Gsheet](assets/Migawka_Wydarzen_Gsheet.jpg)
+
+### Konfiguracja Script Properties w Google Apps Script
+![Apps Script Properties](assets/Apps_Script_Properties.jpg)
+
+### Gotowy raport e-mail w skrzynce Gmail
+![Raport Tygodniowy Gmail](assets/Migawka-Wydarzeń-2026-09-30-Raport-Tygodniowy-roman-pindela-gmail-com-Gmail-09-30-2026_11_53_AM.jpg)
+
+---
+
+## 👤 O autorze
+
+- **Autor:** Roman Pindela
+- **Kontakt e-mail:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
+- **GitHub:** [roman-pindela](https://github.com/roman-pindela)
+- **Version:** 2.2.2
+---
+
+## 📄 Licencja
+
+Projekt udostępniany na licencji **MIT**. Kod może być swobodnie wykorzystywany, modyfikowany i wdrażany do celów prywatnych oraz komercyjnych.
