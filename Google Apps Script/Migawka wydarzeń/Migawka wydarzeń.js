@@ -1,5 +1,6 @@
 /**
- * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z FORMATEM DATY: DD.MM.RRRR dzień_tygodnia
+ * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z OBSŁUGĄ PREFERENCJI ODBIORCÓW,
+ * LOGO.jpg ORAZ NOWYM FORMULARZEM ZAPISU.
  */
 
 function generujRaportWiadomosci() {
@@ -9,9 +10,10 @@ function generujRaportWiadomosci() {
   const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   
-  let odbiorcyEmail = wczytajAdresyEmailZPliku("Automation", "Migawka Wydarzeń", "emails.txt");
-  if (!odbiorcyEmail || odbiorcyEmail.length === 0) {
-    odbiorcyEmail = [Session.getActiveUser().getEmail()];
+  // Wczytanie listy subskrybentów wraz z preferencjami: [{ email: "...", subRodziny: true, subSwiat: true }]
+  let subskrybenci = wczytajSubskrybentowZPliku("Automation", "Migawka Wydarzeń", "emails.txt");
+  if (!subskrybenci || subskrybenci.length === 0) {
+    subskrybenci = [{ email: Session.getActiveUser().getEmail(), subRodziny: true, subSwiat: true }];
   }
 
   if (!filtrProfilu) {
@@ -138,7 +140,7 @@ function generujRaportWiadomosci() {
   });
   sekcja3_WPlanach = Array.from(mapaPlany.values());
 
-  // Uzupełnienie dnia tygodnia w kolumnie z datą (indeks 2: 'Data / Dzień' lub 'Data')
+  // Uzupełnienie dnia tygodnia w kolumnie z datą
   sekcja1_Rodziny = sekcja1_Rodziny.map(row => {
     if (row && row.length > 2) row[2] = normalizujDateZDniemTygodnia(row[2]);
     return row;
@@ -156,12 +158,14 @@ function generujRaportWiadomosci() {
   sortujIGrupujWyniki(sekcja2_WydarzyloSie, 0, 1);
   sortujIGrupujWyniki(sekcja3_WPlanach, 0, 1);
 
-  let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
-  let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
+  if (ss) {
+    let naglowkiArkuszRodziny = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
+    let naglowkiArkuszOgolne = ["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"];
 
-  zapiszDoArkusza(ss, "1. Wydarzenia dla Rodzin", sekcja1_Rodziny, naglowkiArkuszRodziny);
-  zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
-  zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
+    zapiszDoArkusza(ss, "1. Wydarzenia dla Rodzin", sekcja1_Rodziny, naglowkiArkuszRodziny);
+    zapiszDoArkusza(ss, "2. Co się wydarzyło", sekcja2_WydarzyloSie, naglowkiArkuszOgolne);
+    zapiszDoArkusza(ss, "3. Co jest w planach", sekcja3_WPlanach, naglowkiArkuszOgolne);
+  }
 
   let mapaUrlIkon = wczytajIkonyHerbowZDrive();
   let urlLogo = wczytajLogoZDrive();
@@ -171,14 +175,14 @@ function generujRaportWiadomosci() {
     sekcja2_WydarzyloSie, 
     sekcja3_WPlanach, 
     dzisiajStr, 
-    odbiorcyEmail, 
+    subskrybenci, 
     mapaUrlIkon,
     urlLogo
   );
 }
 
 // ============================================================================
-// FORMATOWANIE DATY Z DNIEM TYGODNIA (np. 24.10.2026 sobota)
+// FORMATOWANIE DATY Z DNIEM TYGODNIA
 // ============================================================================
 
 function normalizujDateZDniemTygodnia(wartoscDaty) {
@@ -188,21 +192,17 @@ function normalizujDateZDniemTygodnia(wartoscDaty) {
 
   const dniTygodniaPL = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
 
-  // Jeśli zawiera już nazwę dnia tygodnia, zwracamy bez modyfikacji
   for (let d of dniTygodniaPL) {
     if (tekst.toLowerCase().includes(d)) return tekst;
   }
 
   let rok, miesiac, dzien;
-
-  // Wzorzec RRRR-MM-DD
   let matchISO = tekst.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
   if (matchISO) {
     rok = parseInt(matchISO[1], 10);
     miesiac = parseInt(matchISO[2], 10);
     dzien = parseInt(matchISO[3], 10);
   } else {
-    // Wzorzec DD.MM.RRRR
     let matchPL = tekst.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
     if (matchPL) {
       dzien = parseInt(matchPL[1], 10);
@@ -225,7 +225,7 @@ function normalizujDateZDniemTygodnia(wartoscDaty) {
 }
 
 // ============================================================================
-// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/Logo MW v2.jpg)
+// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/LOGO.jpg)
 // ============================================================================
 
 function wczytajLogoZDrive() {
@@ -238,20 +238,24 @@ function wczytajLogoZDrive() {
     if (!fBrand.hasNext()) return "";
     let folderBrand = fBrand.next();
 
-    let pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
+    // Preferencja dla LOGO.jpg
+    let pliki = folderBrand.getFilesByName("LOGO.jpg");
+    if (!pliki.hasNext()) {
+      pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
+    }
     if (pliki.hasNext()) {
       let plik = pliki.next();
       plik.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w500";
     }
   } catch (e) {
-    Logger.log("Błąd odczytu Logo MW v2.jpg: " + e.message);
+    Logger.log("Błąd odczytu LOGO.jpg: " + e.message);
   }
   return "";
 }
 
 // ============================================================================
-// POBIERANIE LINKÓW DO HERBÓW (RETINA @2X)
+// POBIERANIE LINKÓW DO HERBÓW
 // ============================================================================
 
 function wczytajIkonyHerbowZDrive() {
@@ -300,10 +304,10 @@ function wczytajIkonyHerbowZDrive() {
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL HTML (Z DEFINIOWANĄ PALETĄ BARW)
+// GENEROWANIE STRUKTURY RAPORTU EMAIL DLA KONKRETNEGO ODBIORCY
 // ============================================================================
 
-function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo) {
+function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo, subRodziny, subSwiat) {
   mapaUrlIkon = mapaUrlIkon || {};
 
   const resztaKolumnRodziny = ["Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"];
@@ -323,47 +327,57 @@ function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzi
     { nazwaPliku: "10_symbol_swiat_globus.jpg", etykieta: "Świat", filtr: ["świat", "swiat", "global", "usa", "fed", "rynki", "azja"] }
   ];
 
-  let logoTag = urlLogo ? `<img src="${urlLogo}" alt="Logo" style="height: 64px; width: auto; vertical-align: middle; margin-right: 16px; border-radius: 6px; display: block;" />` : "";
+  let logoTag = urlLogo ? `<img src="${urlLogo}" alt="Logo" style="height: 60px; width: auto; vertical-align: middle; margin-right: 16px; border-radius: 6px; display: block;" />` : "";
+
+  let sekcjeHtml = "";
+
+  if (subRodziny) {
+    sekcjeHtml += `
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 15px; color: #7f4448; margin: 0 0 12px 0; border-bottom: 2px solid #AB6D70; padding-bottom: 5px; font-weight: 700;">
+          1. Wydarzenia dla Rodzin z Dziećmi (Kraków i Region)
+        </h3>
+        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#AB6D70", "#fcf8f8", mapaUrlIkon, 8)}
+      </div>
+    `;
+  }
+
+  if (subSwiat) {
+    sekcjeHtml += `
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 15px; color: #8e6c31; margin: 0 0 12px 0; border-bottom: 2px solid #C39D5C; padding-bottom: 5px; font-weight: 700;">
+          2. Co się wydarzyło w minionym tygodniu (Polska, Europa, Świat)
+        </h3>
+        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#C39D5C", "#fdfbf7", mapaUrlIkon, 6)}
+      </div>
+
+      <div style="margin-bottom: 32px;">
+        <h3 style="font-size: 15px; color: #1b3325; margin: 0 0 12px 0; border-bottom: 2px solid #264533; padding-bottom: 5px; font-weight: 700;">
+          3. Co jest w planach? (Kluczowe wydarzenia nadchodzącego tygodnia)
+        </h3>
+        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#264533", "#f5f8f6", mapaUrlIkon, 6)}
+      </div>
+    `;
+  }
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; max-width: 960px; margin: 0 auto; font-size: 12px; line-height: 1.5;">
       
-      <!-- NAGŁÓWEK GŁÓWNY (LINIA NAD NAGŁÓWKIEM: #AB6F71) -->
-      <div style="border-top: 3px solid #AB6F71; border-bottom: 2px solid #e2e8f0; padding-top: 12px; padding-bottom: 12px; margin-bottom: 24px; display: flex; align-items: center;">
+      <!-- NAGŁÓWEK GŁÓWNY -->
+      <div style="border-top: 3px solid #AB6F71; border-bottom: 2px solid #e2e8f0; padding-top: 14px; padding-bottom: 14px; margin-bottom: 24px; display: flex; align-items: center;">
         ${logoTag}
         <div>
           <h2 style="font-size: 22px; color: #0f172a; margin: 0; padding: 0; font-weight: 700; line-height: 1.2; letter-spacing: -0.3px;">
             Migawka Wydarzeń
           </h2>
           <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">
-            Wydanie z dnia: ${dzisiajStr} &bull; Cotygodniowy raport wydarzeń i informacji
+            Wydanie z dnia: ${dzisiajStr} &bull; Tygodniowy raport analityczny wspierany przez DeepSeek AI
           </p>
         </div>
       </div>
 
-      <!-- 1. TABELA: WYDARZENIA DLA RODZIN (#AB6D70) -->
-      <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #7f4448; margin: 0 0 12px 0; border-bottom: 2px solid #AB6D70; padding-bottom: 5px; font-weight: 700;">
-          1. Wydarzenia dla Rodzin
-        </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneRodziny, resztaKolumnRodziny, konfiguracjaRodziny, "#AB6D70", "#fcf8f8", mapaUrlIkon, 8)}
-      </div>
+      ${sekcjeHtml}
 
-      <!-- 2. TABELA: CO SIĘ WYDARZYŁO (#C39D5C) -->
-      <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #8e6c31; margin: 0 0 12px 0; border-bottom: 2px solid #C39D5C; padding-bottom: 5px; font-weight: 700;">
-          2. Co się wydarzyło (Minione 7 dni)
-        </h3>
-        ${budujTabeleZHerbamiWKolumnie(daneWydarzylo, resztaKolumnOgolne, konfiguracjaOgolna, "#C39D5C", "#fdfbf7", mapaUrlIkon, 6)}
-      </div>
-
-      <!-- 3. TABELA: CO JEST W PLANACH ? (#264533) -->
-      <div style="margin-bottom: 32px;">
-        <h3 style="font-size: 15px; color: #1b3325; margin: 0 0 12px 0; border-bottom: 2px solid #264533; padding-bottom: 5px; font-weight: 700;">
-          3. Co jest w planach ?
-        </h3>
-        ${budujTabeleZHerbamiWKolumnie(danePlany, resztaKolumnOgolne, konfiguracjaOgolna, "#264533", "#f5f8f6", mapaUrlIkon, 6)}
-      </div>
     </div>
   `;
 }
@@ -480,8 +494,8 @@ function formatujKomorkeZLinkiem(tekst, kolor) {
   return "—";
 }
 
-function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaOdbiorcow, mapaUrlIkon, urlLogo) {
-  let odbiorcy = Array.isArray(listaOdbiorcow) ? listaOdbiorcow : [listaOdbiorcow];
+function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, listaSubskrybentow, mapaUrlIkon, urlLogo) {
+  let odbiorcy = Array.isArray(listaSubskrybentow) ? listaSubskrybentow : [listaSubskrybentow];
   if (odbiorcy.length === 0) return;
 
   let temat = "Migawka Wydarzeń (" + dzisiajStr + ") - Raport Tygodniowy";
@@ -491,11 +505,26 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
     webAppUrl = ScriptApp.getService().getUrl();
   } catch (e) {}
 
-  let cialoRaportuHtml = generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo);
-
-  odbiorcy.forEach((adresat, index) => {
-    let emailCzysty = adresat.trim();
+  odbiorcy.forEach((sub, index) => {
+    let emailCzysty = (typeof sub === "string" ? sub : sub.email).trim();
     if (!emailCzysty) return;
+
+    let subRodziny = typeof sub.subRodziny !== "undefined" ? sub.subRodziny : true;
+    let subSwiat = typeof sub.subSwiat !== "undefined" ? sub.subSwiat : true;
+
+    // Jeżeli subskrybent odznaczył wszystko, nie wysyłamy pustej wiadomości
+    if (!subRodziny && !subSwiat) return;
+
+    let cialoRaportuHtml = generujCialoRaportuEmailHtml(
+      daneRodziny, 
+      daneWydarzylo, 
+      danePlany, 
+      dzisiajStr, 
+      mapaUrlIkon, 
+      urlLogo, 
+      subRodziny, 
+      subSwiat
+    );
 
     let unsubscribeLink = webAppUrl ? `${webAppUrl}?action=unsubscribe&email=${encodeURIComponent(emailCzysty)}` : "#";
 
@@ -503,8 +532,8 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
       <div style="max-width: 960px; margin: 0 auto; background-color: #ffffff; padding: 16px;">
         ${cialoRaportuHtml}
         <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 12px; font-size: 11px; color: #94a3b8; text-align: center;">
-          Raport przygotowany przez DeepSeek AI dla ${emailCzysty}. 
-          <a href="${unsubscribeLink}" target="_blank" style="color: #64748b; margin-left: 8px;">Wypisz się z subskrypcji</a>
+          Raport wyselekcjonowany z użyciem sztucznej inteligencji DeepSeek dla: <strong>${emailCzysty}</strong>.<br/>
+          <a href="${unsubscribeLink}" target="_blank" style="color: #64748b; margin-top: 6px; display: inline-block;">Wypisz się z subskrypcji</a>
         </div>
       </div>
     `;
@@ -515,7 +544,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
         subject: temat,
         htmlBody: emailHtml
       });
-      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano do: ${emailCzysty}`);
+      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano do: ${emailCzysty} (Rodziny: ${subRodziny}, Świat: ${subSwiat})`);
       if (index < odbiorcy.length - 1) Utilities.sleep(500);
     } catch (err) {
       Logger.log(`Błąd wysyłki do ${emailCzysty}: ${err.message}`);
@@ -643,7 +672,7 @@ function bezpiecznyParseJson(surowyTekst) {
 }
 
 // ============================================================================
-// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE (BEZ EMOTIKON)
+// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE
 // ============================================================================
 
 function doGet(e) {
@@ -656,7 +685,7 @@ function doGet(e) {
     let tytul = sukces ? "Wypisano z subskrypcji" : "Wystąpił błąd";
     let kolor = sukces ? "#059669" : "#dc2626";
     let komunikat = sukces 
-      ? `Twój adres <strong>${email}</strong> został pomyślnie usunięty z listy odbiorców.` 
+      ? `Twój adres <strong>${email}</strong> został pomyślnie usunięty z listy odbiorców newslettera.` 
       : `Nie udało się usunąć adresu <strong>${email}</strong>.`;
 
     let html = generujKomunikatKartyHtml(tytul, kolor, komunikat);
@@ -665,7 +694,8 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  return HtmlService.createHtmlOutput(generujFormularzZapisuHtml())
+  let urlLogo = wczytajLogoZDrive();
+  return HtmlService.createHtmlOutput(generujFormularzZapisuHtml(urlLogo))
     .setTitle("Zapisz się do Migawki Wydarzeń")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -673,24 +703,33 @@ function doGet(e) {
 function doPost(e) {
   let postData = e ? e.parameter : null;
   if (!postData) {
-    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Brak danych." })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Brak przesłanych danych." })).setMimeType(ContentService.MimeType.JSON);
   }
 
   let email = postData.email ? postData.email.trim() : "";
   let captchaToken = postData["cf-turnstile-response"] || postData["g-recaptcha-response"] || "";
 
   if (!zweryfikujCaptcha(captchaToken)) {
-    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Błąd weryfikacji Captcha." })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Błąd weryfikacji antyspamowej Captcha." })).setMimeType(ContentService.MimeType.JSON);
   }
 
   if (!email || !email.includes("@")) {
-    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Niepoprawny e-mail." })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Wprowadź prawidłowy adres e-mail." })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  let wynik = dodajAdresEmailDoPliku("Automation", "Migawka Wydarzeń", "emails.txt", email);
+  let subRodziny = postData.opcja_rodziny === "1" || postData.opcja_rodziny === "on";
+  let subSwiat = postData.opcja_swiat === "1" || postData.opcja_swiat === "on";
+
+  if (!subRodziny && !subSwiat) {
+    return ContentService.createTextOutput(JSON.stringify({ sukces: false, komunikat: "Zaznacz co najmniej jeden raport do subskrypcji." })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  let wynik = dodajAdresEmailDoPliku("Automation", "Migawka Wydarzeń", "emails.txt", email, subRodziny, subSwiat);
   return ContentService.createTextOutput(JSON.stringify({ 
     sukces: wynik.sukces, 
-    komunikat: wynik.sukces ? `Adres zapisany!` : (wynik.duplikat ? "Adres już znajduje się na liście." : "Błąd zapisu.") 
+    komunikat: wynik.sukces 
+      ? `Dziękujemy! Twój adres został pomyślnie zapisany.` 
+      : (wynik.duplikat ? "Ten adres e-mail jest już zarejestrowany. Zaktualizowaliśmy Twoje preferencje." : "Wystąpił błąd podczas zapisu.") 
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -711,41 +750,299 @@ function zweryfikujCaptcha(token) {
   }
 }
 
-function generujFormularzZapisuHtml() {
+// ============================================================================
+// WIDOK STRONY ZAPISU (HTML + CSS)
+// ============================================================================
+
+function generujFormularzZapisuHtml(urlLogo) {
   const siteKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SITE_KEY") || "";
   let webAppUrl = "";
   try { webAppUrl = ScriptApp.getService().getUrl(); } catch(e) {}
+
+  let logoImgHtml = urlLogo 
+    ? `<img src="${urlLogo}" alt="Logo Migawka Wydarzeń" style="max-height: 80px; max-width: 100%; height: auto; margin: 0 auto 16px auto; display: block; border-radius: 8px;">`
+    : `<div style="font-size: 26px; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">Migawka Wydarzeń</div>`;
 
   return `
     <!DOCTYPE html>
     <html lang="pl">
     <head>
       <meta charset="UTF-8">
-      <title>Zapisz się do Migawki Wydarzeń</title>
+      <title>Migawka Wydarzeń – Cotygodniowy newsletter z analizą AI</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      ${siteKey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; }
-        .card { background: #ffffff; padding: 32px; border-radius: 10px; max-width: 400px; width: 100%; border: 1px solid #e2e8f0; }
-        input[type="email"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; margin-bottom: 12px; box-sizing: border-box; }
-        button { width: 100%; background: #0284c7; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 5px; cursor: pointer; }
+        * { box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background: #f1f5f9;
+          color: #1e293b;
+          margin: 0;
+          padding: 24px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+        }
+        .container {
+          background: #ffffff;
+          max-width: 620px;
+          width: 100%;
+          padding: 36px 32px;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .header {
+          text-align: center;
+          border-bottom: 1px solid #e2e8f0;
+          padding-bottom: 20px;
+          margin-bottom: 24px;
+        }
+        .badge {
+          display: inline-block;
+          background: #f0fdf4;
+          color: #166534;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          border: 1px solid #bbf7d0;
+          margin-bottom: 10px;
+        }
+        h1 {
+          font-size: 22px;
+          color: #0f172a;
+          margin: 6px 0 10px 0;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+        p.subtitle {
+          font-size: 13px;
+          color: #475569;
+          margin: 0;
+          line-height: 1.5;
+        }
+        .how-it-works {
+          background: #f8fafc;
+          border-left: 3px solid #AB6F71;
+          padding: 14px 16px;
+          border-radius: 0 8px 8px 0;
+          font-size: 12px;
+          color: #334155;
+          line-height: 1.55;
+          margin-bottom: 24px;
+        }
+        .how-it-works strong {
+          color: #0f172a;
+        }
+        .options-title {
+          font-size: 13px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: #64748b;
+          margin-bottom: 12px;
+        }
+        .option-box {
+          border: 1.5px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 14px 16px;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: flex-start;
+          cursor: pointer;
+          transition: all 0.15s ease-in-out;
+          background: #ffffff;
+        }
+        .option-box:hover {
+          border-color: #cbd5e1;
+          background: #fbfcfe;
+        }
+        .option-box input[type="checkbox"] {
+          margin-top: 3px;
+          margin-right: 14px;
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: #AB6F71;
+        }
+        .option-content h3 {
+          font-size: 14px;
+          margin: 0 0 4px 0;
+          color: #0f172a;
+          font-weight: 700;
+        }
+        .option-content p {
+          font-size: 12px;
+          color: #475569;
+          margin: 0 0 6px 0;
+          line-height: 1.45;
+        }
+        .option-sources {
+          font-size: 11px;
+          color: #64748b;
+          background: #f1f5f9;
+          padding: 4px 8px;
+          border-radius: 4px;
+          display: inline-block;
+          line-height: 1.4;
+        }
+        .email-field {
+          margin-top: 20px;
+        }
+        .email-field label {
+          display: block;
+          font-size: 12px;
+          font-weight: 700;
+          color: #334155;
+          margin-bottom: 6px;
+        }
+        input[type="email"] {
+          width: 100%;
+          padding: 12px 14px;
+          font-size: 14px;
+          border: 1.5px solid #cbd5e1;
+          border-radius: 6px;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        input[type="email"]:focus {
+          border-color: #AB6F71;
+          box-shadow: 0 0 0 3px rgba(171, 111, 113, 0.15);
+        }
+        .submit-btn {
+          width: 100%;
+          background: #AB6F71;
+          color: #ffffff;
+          border: none;
+          padding: 14px;
+          font-size: 14px;
+          font-weight: 700;
+          border-radius: 6px;
+          cursor: pointer;
+          margin-top: 16px;
+          transition: background 0.2s;
+        }
+        .submit-btn:hover {
+          background: #945759;
+        }
+        .msg-box {
+          display: none;
+          padding: 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          text-align: center;
+          margin-top: 14px;
+        }
+        .msg-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .msg-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .footer-note {
+          font-size: 11px;
+          color: #94a3b8;
+          text-align: center;
+          margin-top: 20px;
+          line-height: 1.4;
+        }
       </style>
     </head>
     <body>
-      <div class="card">
-        <h2 style="margin-top:0; color:#0f172a;">Migawka Wydarzeń</h2>
-        <form id="f">
-          <input type="email" id="email" name="email" placeholder="twoj@email.com" required>
-          <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
-          <button type="submit" style="margin-top:10px;">Zapisz się</button>
+      <div class="container">
+        
+        <div class="header">
+          ${logoImgHtml}
+          <div class="badge">Bezpłatny cotygodniowy newsletter</div>
+          <h1>Konkretne informacje zamiast szumu</h1>
+          <p class="subtitle">Wszystko, co ważne w Twoim regionie i na świecie — w jednym, zwięzłym raporcie prosto na skrzynkę e-mail.</p>
+        </div>
+
+        <div class="how-it-works">
+          <strong>Jak to działa?</strong><br>
+          Co tydzień zaawansowany silnik sztucznej inteligencji (<strong>DeepSeek</strong>) przeszukuje i analizuje wybrane, rzetelne serwisy internetowe. AI odrzuca internetowy szum, clickbait i powierzchowne wpisy, wybierając wyłącznie angażujące, wartościowe wydarzenia oraz kluczowe fakty rynkowe wraz ze sprawdzonymi linkami źródłowymi.
+        </div>
+
+        <form id="subscribeForm">
+          <div class="options-title">Wybierz tematykę newslettera:</div>
+
+          <!-- OPCJA 1 -->
+          <label class="option-box">
+            <input type="checkbox" name="opcja_rodziny" value="1" checked>
+            <div class="option-content">
+              <h3>Raport 1: Wydarzenia dla Rodzin z Dziećmi</h3>
+              <p>Najciekawsze spektakle, warsztaty, wystawy, pikniki i inicjatywy edukacyjne w Krakowie i Małopolsce na nadchodzące 7 dni oraz stałe atrakcje.</p>
+              <div class="option-sources">
+                <strong>Analizowane źródła:</strong> CK Podgórza (Sokolska, Fort Borek, Iskierka), Dzielnica IX Łagiewniki, SM Cegielniana, Przedszkole 140, CSM Tarnów, Kultura Tarnów, Wydarzenia Miasto-Info (Myślenice), Małopolska.pl.
+              </div>
+            </div>
+          </label>
+
+          <!-- OPCJA 2 -->
+          <label class="option-box">
+            <input type="checkbox" name="opcja_swiat" value="1" checked>
+            <div class="option-content">
+              <h3>Raport 2 & 3: Przegląd Wiadomości – Polska i Świat</h3>
+              <p>Podsumowanie najważniejszych wydarzeń minionego tygodnia oraz harmonogram kluczowych decyzji gospodarczych, politycznych i rynkowych na kolejny tydzień. Zero sensacji, tylko meritum.</p>
+              <div class="option-sources">
+                <strong>Analizowane źródła:</strong> Forsal.pl (Gospodarka), Biznes PAP, Politico.eu (Europa), Rzeczpospolita Świat (Geopolityka), Zero.pl (Kraj).
+              </div>
+            </div>
+          </label>
+
+          <div class="email-field">
+            <label for="email">Twój adres e-mail:</label>
+            <input type="email" id="email" name="email" placeholder="nazwisko@twojadomena.pl" required>
+          </div>
+
+          ${siteKey ? `<div class="cf-turnstile" data-sitekey="${siteKey}" style="margin-top:14px;"></div>` : ''}
+
+          <button type="submit" id="submitBtn" class="submit-btn">Zapisz się bezpłatnie</button>
         </form>
+
+        <div id="statusMsg" class="msg-box"></div>
+
+        <div class="footer-note">
+          Szanujemy Twój czas i prywatność. Raport wysyłany jest raz w tygodniu. Możesz wypisać się w dowolnym momencie jednym kliknięciem.
+        </div>
+
       </div>
+
       <script>
-        document.getElementById("f").addEventListener("submit", function(e) {
+        const form = document.getElementById("subscribeForm");
+        const submitBtn = document.getElementById("submitBtn");
+        const statusMsg = document.getElementById("statusMsg");
+
+        form.addEventListener("submit", function(e) {
           e.preventDefault();
-          fetch("${webAppUrl}", { method: "POST", body: new FormData(this) })
-            .then(r => r.json())
-            .then(d => alert(d.komunikat));
+          submitBtn.disabled = true;
+          submitBtn.innerText = "Zapisywanie...";
+          statusMsg.style.display = "none";
+
+          fetch("${webAppUrl}", {
+            method: "POST",
+            body: new FormData(form)
+          })
+          .then(resp => resp.json())
+          .then(data => {
+            statusMsg.innerText = data.komunikat;
+            if (data.sukces) {
+              statusMsg.className = "msg-box msg-success";
+              form.reset();
+            } else {
+              statusMsg.className = "msg-box msg-error";
+            }
+            statusMsg.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Zapisz się bezpłatnie";
+          })
+          .catch(err => {
+            statusMsg.innerText = "Wystąpił błąd połączenia. Spróbuj ponownie za chwilę.";
+            statusMsg.className = "msg-box msg-error";
+            statusMsg.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Zapisz się bezpłatnie";
+          });
         });
       </script>
     </body>
@@ -754,7 +1051,151 @@ function generujFormularzZapisuHtml() {
 }
 
 function generujKomunikatKartyHtml(tytul, kolor, tresc) {
-  return `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:40px;"><h2 style="color:${kolor}">${tytul}</h2><p>${tresc}</p></body></html>`;
+  return `
+    <!DOCTYPE html>
+    <html lang="pl">
+    <head>
+      <meta charset="UTF-8">
+      <title>${tytul}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; }
+        .box { background: #ffffff; padding: 40px 32px; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 440px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+        h2 { color: ${kolor}; margin-top: 0; font-size: 20px; }
+        p { color: #475569; font-size: 14px; line-height: 1.5; }
+      </style>
+    </head>
+    <body>
+      <div class="box">
+        <h2>${tytul}</h2>
+        <p>${tresc}</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// ============================================================================
+// OBSŁUGA PLIKU emails.txt Z PREFERENCJAMI ODBIORCÓW
+// ============================================================================
+
+/**
+ * Format zapisu w emails.txt:
+ * email@domena.pl;rodziny,swiat
+ * email2@domena.pl;rodziny
+ * email3@domena.pl;swiat
+ */
+function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, nowyEmail, subRodziny, subSwiat) {
+  try {
+    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!f1.hasNext()) return { sukces: false };
+    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
+    if (!f2.hasNext()) return { sukces: false };
+    let podfolder = f2.next();
+    let pliki = podfolder.getFilesByName(nazwaPliku);
+    let plik = pliki.hasNext() ? pliki.next() : podfolder.createFile(nazwaPliku, "");
+
+    let linie = plik.getBlob().getDataAsString().split(/[\r\n]+/);
+    let mapa = new Map();
+    let duplikat = false;
+
+    linie.forEach(l => {
+      let trimmed = l.trim();
+      if (!trimmed || !trimmed.includes("@")) return;
+      let czesci = trimmed.split(";");
+      let em = czesci[0].trim().toLowerCase();
+      let pref = czesci[1] ? czesci[1].trim() : "rodziny,swiat";
+      mapa.set(em, pref);
+    });
+
+    let klucz = nowyEmail.trim().toLowerCase();
+    if (mapa.has(klucz)) {
+      duplikat = true;
+    }
+
+    let prefList = [];
+    if (subRodziny) prefList.push("rodziny");
+    if (subSwiat) prefList.push("swiat");
+    let nowaWartoscPref = prefList.join(",");
+
+    mapa.set(klucz, nowaWartoscPref);
+
+    let noweWiersze = [];
+    mapa.forEach((pref, em) => {
+      noweWiersze.push(`${em};${pref}`);
+    });
+
+    plik.setContent(noweWiersze.join("\n"));
+    return { sukces: true, duplikat: duplikat };
+  } catch (err) {
+    Logger.log("Błąd dodawania e-maila: " + err.message);
+    return { sukces: false };
+  }
+}
+
+function usunAdresEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, emailDoUsuniecia) {
+  try {
+    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
+    if (!f1.hasNext()) return false;
+    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
+    if (!f2.hasNext()) return false;
+    let pliki = f2.next().getFilesByName(nazwaPliku);
+    if (!pliki.hasNext()) return false;
+    let plik = pliki.next();
+
+    let emailCel = emailDoUsuniecia.trim().toLowerCase();
+    let linie = plik.getBlob().getDataAsString().split(/[\r\n]+/);
+    let noweLinie = linie.filter(l => {
+      let trimmed = l.trim();
+      if (!trimmed || !trimmed.includes("@")) return false;
+      let em = trimmed.split(";")[0].trim().toLowerCase();
+      return em !== emailCel;
+    });
+
+    plik.setContent(noweLinie.join("\n"));
+    return true;
+  } catch (err) {
+    Logger.log("Błąd usuwania e-maila: " + err.message);
+    return false;
+  }
+}
+
+function wczytajSubskrybentowZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
+  let zawartosc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
+  if (!zawartosc) return null;
+
+  let linie = zawartosc.split(/[\r\n]+/);
+  let wynik = [];
+  let widziane = new Set();
+
+  linie.forEach(l => {
+    let trimmed = l.trim();
+    if (!trimmed || !trimmed.includes("@")) return;
+
+    let czesci = trimmed.split(";");
+    let em = czesci[0].trim();
+    let klucz = em.toLowerCase();
+    if (widziane.has(klucz)) return;
+    widziane.add(klucz);
+
+    let pref = czesci[1] ? czesci[1].toLowerCase() : "rodziny,swiat";
+    let subRodziny = pref.includes("rodziny");
+    let subSwiat = pref.includes("swiat");
+
+    // Jeśli w pliku były zapisane same emaile (starszy format), domyślnie wysyłaj oba raporty
+    if (!czesci[1]) {
+      subRodziny = true;
+      subSwiat = true;
+    }
+
+    wynik.push({
+      email: em,
+      subRodziny: subRodziny,
+      subSwiat: subSwiat
+    });
+  });
+
+  return wynik;
 }
 
 // ============================================================================
@@ -818,62 +1259,6 @@ function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
   });
 
   return text.replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
-}
-
-function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, nowyEmail) {
-  try {
-    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
-    if (!f1.hasNext()) return { sukces: false };
-    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
-    if (!f2.hasNext()) return { sukces: false };
-    let podfolder = f2.next();
-    let pliki = podfolder.getFilesByName(nazwaPliku);
-    let plik = pliki.hasNext() ? pliki.next() : podfolder.createFile(nazwaPliku, "");
-
-    let suroweWpisy = plik.getBlob().getDataAsString().split(/[\r\n,;]+/);
-    let unikalne = [];
-    let juzJest = false;
-
-    suroweWpisy.forEach(w => {
-      let adr = w.trim();
-      if (adr.includes("@")) {
-        if (adr.toLowerCase() === nowyEmail.toLowerCase()) juzJest = true;
-        unikalne.push(adr);
-      }
-    });
-
-    if (juzJest) return { sukces: false, duplikat: true };
-    unikalne.push(nowyEmail.toLowerCase());
-    plik.setContent(unikalne.join("\n"));
-    return { sukces: true };
-  } catch (err) {
-    return { sukces: false };
-  }
-}
-
-function usunAdresEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, emailDoUsuniecia) {
-  try {
-    let f1 = DriveApp.getFoldersByName(nazwaGlownegoFolderu);
-    if (!f1.hasNext()) return false;
-    let f2 = f1.next().getFoldersByName(nazwaPodfolderu);
-    if (!f2.hasNext()) return false;
-    let pliki = f2.next().getFilesByName(nazwaPliku);
-    if (!pliki.hasNext()) return false;
-    let plik = pliki.next();
-
-    let suroweWpisy = plik.getBlob().getDataAsString().split(/[\r\n,;]+/);
-    let nowaLista = suroweWpisy.map(s => s.trim()).filter(adr => adr.includes("@") && adr.toLowerCase() !== emailDoUsuniecia.toLowerCase());
-    plik.setContent(nowaLista.join("\n"));
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
-function wczytajAdresyEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
-  let zawartosc = wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku);
-  if (!zawartosc) return null;
-  return [...new Set(zawartosc.split(/[\r\n,;]+/).map(s => s.trim()).filter(s => s.includes("@")))];
 }
 
 function wczytajPlikTekstowyWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku) {
