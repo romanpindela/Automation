@@ -1,6 +1,6 @@
 /**
  * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z OBSŁUGĄ PREFERENCJI ODBIORCÓW,
- * LOGO.jpg ORAZ NOWYM FORMULARZEM ZAPISU.
+ * Logo MW v2.jpg ORAZ NOWYM FORMULARZEM ZAPISU.
  */
 
 function generujRaportWiadomosci() {
@@ -238,8 +238,8 @@ function wczytajLogoZDrive() {
     if (!fBrand.hasNext()) return "";
     let folderBrand = fBrand.next();
 
-    // Preferencja dla LOGO.jpg
-    let pliki = folderBrand.getFilesByName("LOGO.jpg");
+    // Preferencja dla Logo MW v2.jpg
+    let pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
     if (!pliki.hasNext()) {
       pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
     }
@@ -249,7 +249,7 @@ function wczytajLogoZDrive() {
       return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w500";
     }
   } catch (e) {
-    Logger.log("Błąd odczytu LOGO.jpg: " + e.message);
+    Logger.log("Błąd odczytu Logo MW v2.jpg: " + e.message);
   }
   return "";
 }
@@ -758,27 +758,34 @@ function generujFormularzZapisuHtml(urlLogo) {
   const siteKey = PropertiesService.getScriptProperties().getProperty("CAPTCHA_SITE_KEY") || "";
   let webAppUrl = "";
   try { webAppUrl = ScriptApp.getService().getUrl(); } catch(e) {}
+  
+  let kontaktEmail = "";
+  try { kontaktEmail = Session.getActiveUser().getEmail(); } catch(e) {}
 
   let logoImgHtml = urlLogo 
-    ? `<img src="${urlLogo}" alt="Logo Migawka Wydarzeń" style="max-height: 80px; max-width: 100%; height: auto; margin: 0 auto 16px auto; display: block; border-radius: 8px;">`
-    : `<div style="font-size: 26px; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">Migawka Wydarzeń</div>`;
+    ? `<img src="${urlLogo}" alt="Logo Migawka Wydarzeń" style="max-height: 160px; max-width: 100%; height: auto; margin: 0 auto 20px auto; display: block; border-radius: 8px;">`
+    : `<div style="font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: -0.5px;">Migawka Wydarzeń</div>`;
+
+  let linkZgloszenia = kontaktEmail 
+    ? `mailto:${kontaktEmail}?subject=Propozycja%20nowego%20źródła%20-%20Migawka%20Wydarzeń` 
+    : "#";
 
   return `
     <!DOCTYPE html>
     <html lang="pl">
     <head>
       <meta charset="UTF-8">
-      <title>Migawka Wydarzeń – Cotygodniowy newsletter z analizą AI</title>
+      <title>Migawka Wydarzeń – Cotygodniowy newsletter analityczny AI</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       ${siteKey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
       <style>
         * { box-sizing: border-box; }
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          background: #f1f5f9;
+          background: #f8fafc;
           color: #1e293b;
           margin: 0;
-          padding: 24px 16px;
+          padding: 32px 16px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -786,75 +793,109 @@ function generujFormularzZapisuHtml(urlLogo) {
         }
         .container {
           background: #ffffff;
-          max-width: 620px;
+          max-width: 640px;
           width: 100%;
-          padding: 36px 32px;
-          border-radius: 12px;
+          padding: 40px 36px;
+          border-radius: 14px;
           border: 1px solid #e2e8f0;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
         }
         .header {
           text-align: center;
-          border-bottom: 1px solid #e2e8f0;
-          padding-bottom: 20px;
+          border-bottom: 1px solid #f1f5f9;
+          padding-bottom: 24px;
           margin-bottom: 24px;
         }
         .badge {
           display: inline-block;
-          background: #f0fdf4;
-          color: #166534;
+          background: #fdf2f2;
+          color: #991b1b;
           font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 4px 10px;
+          letter-spacing: 0.6px;
+          padding: 5px 12px;
           border-radius: 20px;
+          border: 1px solid #fecaca;
+          margin-bottom: 14px;
+        }
+        .schedule-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #f0fdf4;
+          color: #166534;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 6px 14px;
+          border-radius: 8px;
           border: 1px solid #bbf7d0;
-          margin-bottom: 10px;
+          margin-top: 12px;
         }
         h1 {
-          font-size: 22px;
+          font-size: 24px;
           color: #0f172a;
-          margin: 6px 0 10px 0;
+          margin: 0 0 10px 0;
           font-weight: 700;
           line-height: 1.3;
+          letter-spacing: -0.4px;
         }
         p.subtitle {
-          font-size: 13px;
+          font-size: 14px;
           color: #475569;
           margin: 0;
-          line-height: 1.5;
-        }
-        .how-it-works {
-          background: #f8fafc;
-          border-left: 3px solid #AB6F71;
-          padding: 14px 16px;
-          border-radius: 0 8px 8px 0;
-          font-size: 12px;
-          color: #334155;
           line-height: 1.55;
+        }
+        .intro-box {
+          background: #fafaf9;
+          border-left: 3px solid #AB6F71;
+          padding: 16px 18px;
+          border-radius: 0 8px 8px 0;
+          font-size: 12.5px;
+          color: #334155;
+          line-height: 1.6;
+          margin-bottom: 20px;
+        }
+        .preview-trigger-container {
+          text-align: center;
           margin-bottom: 24px;
         }
-        .how-it-works strong {
+        .btn-preview {
+          background: #f1f5f9;
+          color: #334155;
+          border: 1px solid #cbd5e1;
+          padding: 9px 18px;
+          font-size: 13px;
+          font-weight: 600;
+          border-radius: 6px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+        }
+        .btn-preview:hover {
+          background: #e2e8f0;
           color: #0f172a;
+          border-color: #94a3b8;
         }
         .options-title {
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.5px;
           color: #64748b;
           margin-bottom: 12px;
         }
         .option-box {
           border: 1.5px solid #e2e8f0;
-          border-radius: 8px;
-          padding: 14px 16px;
-          margin-bottom: 12px;
+          border-radius: 10px;
+          padding: 16px 18px;
+          margin-bottom: 14px;
           display: flex;
           align-items: flex-start;
           cursor: pointer;
-          transition: all 0.15s ease-in-out;
+          transition: all 0.2s ease;
           background: #ffffff;
         }
         .option-box:hover {
@@ -868,36 +909,38 @@ function generujFormularzZapisuHtml(urlLogo) {
           height: 18px;
           cursor: pointer;
           accent-color: #AB6F71;
+          flex-shrink: 0;
         }
         .option-content h3 {
-          font-size: 14px;
-          margin: 0 0 4px 0;
+          font-size: 14.5px;
+          margin: 0 0 5px 0;
           color: #0f172a;
           font-weight: 700;
         }
         .option-content p {
-          font-size: 12px;
+          font-size: 12.5px;
           color: #475569;
-          margin: 0 0 6px 0;
-          line-height: 1.45;
+          margin: 0 0 8px 0;
+          line-height: 1.5;
         }
         .option-sources {
           font-size: 11px;
           color: #64748b;
           background: #f1f5f9;
-          padding: 4px 8px;
-          border-radius: 4px;
-          display: inline-block;
-          line-height: 1.4;
+          padding: 5px 10px;
+          border-radius: 6px;
+          line-height: 1.45;
         }
         .email-field {
-          margin-top: 20px;
+          margin-top: 24px;
         }
         .email-field label {
           display: block;
           font-size: 12px;
           font-weight: 700;
           color: #334155;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
           margin-bottom: 6px;
         }
         input[type="email"] {
@@ -905,9 +948,9 @@ function generujFormularzZapisuHtml(urlLogo) {
           padding: 12px 14px;
           font-size: 14px;
           border: 1.5px solid #cbd5e1;
-          border-radius: 6px;
+          border-radius: 7px;
           outline: none;
-          transition: border-color 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s;
         }
         input[type="email"]:focus {
           border-color: #AB6F71;
@@ -919,11 +962,11 @@ function generujFormularzZapisuHtml(urlLogo) {
           color: #ffffff;
           border: none;
           padding: 14px;
-          font-size: 14px;
+          font-size: 14.5px;
           font-weight: 700;
-          border-radius: 6px;
+          border-radius: 7px;
           cursor: pointer;
-          margin-top: 16px;
+          margin-top: 18px;
           transition: background 0.2s;
         }
         .submit-btn:hover {
@@ -939,12 +982,109 @@ function generujFormularzZapisuHtml(urlLogo) {
         }
         .msg-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .msg-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-        .footer-note {
-          font-size: 11px;
-          color: #94a3b8;
-          text-align: center;
+
+        .feedback-box {
+          margin-top: 28px;
+          background: #fdfaf6;
+          border: 1px dashed #d6c3b3;
+          border-radius: 8px;
+          padding: 16px;
+          font-size: 12px;
+          color: #57463a;
+          line-height: 1.55;
+        }
+        .feedback-box strong { color: #3d2b20; }
+        .feedback-box a { color: #8a4b4e; font-weight: 600; text-decoration: underline; }
+
+        .disclaimer-box {
           margin-top: 20px;
-          line-height: 1.4;
+          padding: 16px;
+          background: #f8fafc;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          font-size: 11px;
+          color: #64748b;
+          line-height: 1.6;
+        }
+        .disclaimer-box p { margin: 0 0 7px 0; }
+        .disclaimer-box p:last-child { margin-bottom: 0; }
+
+        /* MODAL PODGLĄDU RAPORTU */
+        .modal-overlay {
+          display: none;
+          position: fixed;
+          top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(15, 23, 42, 0.65);
+          backdrop-filter: blur(3px);
+          z-index: 9999;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+        }
+        .modal-card {
+          background: #ffffff;
+          border-radius: 12px;
+          max-width: 860px;
+          width: 100%;
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+          overflow: hidden;
+        }
+        .modal-header {
+          padding: 14px 20px;
+          border-bottom: 1px solid #e2e8f0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #f8fafc;
+        }
+        .modal-header h3 {
+          margin: 0;
+          font-size: 15px;
+          color: #0f172a;
+        }
+        .modal-close {
+          background: transparent;
+          border: none;
+          font-size: 22px;
+          line-height: 1;
+          color: #64748b;
+          cursor: pointer;
+        }
+        .modal-close:hover { color: #0f172a; }
+        .modal-body {
+          padding: 24px;
+          overflow-y: auto;
+          font-size: 12px;
+        }
+        .sample-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 8px;
+          margin-bottom: 16px;
+          font-size: 11px;
+        }
+        .sample-table th, .sample-table td {
+          border: 1px solid #e2e8f0;
+          padding: 6px 8px;
+          text-align: left;
+          vertical-align: top;
+        }
+        .sample-table th {
+          background: #f8fafc;
+          font-weight: 700;
+          color: #334155;
+        }
+        .sample-tag {
+          background: #AB6F71;
+          color: #fff;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 10px;
+          text-decoration: none;
+          display: inline-block;
         }
       </style>
     </head>
@@ -953,27 +1093,37 @@ function generujFormularzZapisuHtml(urlLogo) {
         
         <div class="header">
           ${logoImgHtml}
-          <div class="badge">Bezpłatny cotygodniowy newsletter</div>
+          <div class="badge">Inicjatywa Prywatna &bull; Bezpłatny Raport</div>
           <h1>Konkretne informacje zamiast szumu</h1>
-          <p class="subtitle">Wszystko, co ważne w Twoim regionie i na świecie — w jednym, zwięzłym raporcie prosto na skrzynkę e-mail.</p>
+          <p class="subtitle">Wszystko, co ważne w Twoim regionie i na świecie — przejrzysty, selekcjonowany raport prosto na skrzynkę e-mail.</p>
+          <div class="schedule-badge">
+            📅 Wysyłka w każdy poniedziałek między 7:00 a 8:00 rano (czasu polskiego)
+          </div>
         </div>
 
-        <div class="how-it-works">
-          <strong>Jak to działa?</strong><br>
-          Co tydzień zaawansowany silnik sztucznej inteligencji (<strong>DeepSeek</strong>) przeszukuje i analizuje wybrane, rzetelne serwisy internetowe. AI odrzuca internetowy szum, clickbait i powierzchowne wpisy, wybierając wyłącznie angażujące, wartościowe wydarzenia oraz kluczowe fakty rynkowe wraz ze sprawdzonymi linkami źródłowymi.
+        <div class="intro-box">
+          <strong>Jak powstaje ten newsletter?</strong><br>
+          Co tydzień silnik sztucznej inteligencji (<strong>DeepSeek</strong>) analizuje wybrane witryny instytucjonalne i branżowe. AI eliminuje clickbait, sensację oraz powierzchowne notki prasowe, wyodrębniając wyłącznie wartościowe inicjatywy rodzinne oraz kluczowe fakty rynkowo-gospodarcze wraz z bezpośrednimi źródłami.
+        </div>
+
+        <!-- PRZYCISK PODGLĄDU RAPORTU -->
+        <div class="preview-trigger-container">
+          <button type="button" id="openPreviewBtn" class="btn-preview">
+            👁️ Zobacz przykładowy raport (podgląd)
+          </button>
         </div>
 
         <form id="subscribeForm">
-          <div class="options-title">Wybierz tematykę newslettera:</div>
+          <div class="options-title">Wybierz zakres subskrypcji:</div>
 
           <!-- OPCJA 1 -->
           <label class="option-box">
             <input type="checkbox" name="opcja_rodziny" value="1" checked>
             <div class="option-content">
               <h3>Raport 1: Wydarzenia dla Rodzin z Dziećmi</h3>
-              <p>Najciekawsze spektakle, warsztaty, wystawy, pikniki i inicjatywy edukacyjne w Krakowie i Małopolsce na nadchodzące 7 dni oraz stałe atrakcje.</p>
+              <p>Wyselekcjonowane spektakle, warsztaty, wystawy, pikniki i inicjatywy edukacyjne w Krakowie i Małopolsce na nadchodzące 7 dni oraz stale trwające wystawy.</p>
               <div class="option-sources">
-                <strong>Analizowane źródła:</strong> CK Podgórza (Sokolska, Fort Borek, Iskierka), Dzielnica IX Łagiewniki, SM Cegielniana, Przedszkole 140, CSM Tarnów, Kultura Tarnów, Wydarzenia Miasto-Info (Myślenice), Małopolska.pl.
+                <strong>Przeszukiwane źródła:</strong> CK Podgórza (Sokolska, Fort Borek, Iskierka), Dzielnica IX Łagiewniki-Borek Fałęcki, SM Cegielniana, Samorządowe Przedszkole 140, CSM Tarnów, Kultura Tarnów, Wydarzenia Miasto-Info (Myślenice), Małopolska.pl.
               </div>
             </div>
           </label>
@@ -982,17 +1132,17 @@ function generujFormularzZapisuHtml(urlLogo) {
           <label class="option-box">
             <input type="checkbox" name="opcja_swiat" value="1" checked>
             <div class="option-content">
-              <h3>Raport 2 & 3: Przegląd Wiadomości – Polska i Świat</h3>
-              <p>Podsumowanie najważniejszych wydarzeń minionego tygodnia oraz harmonogram kluczowych decyzji gospodarczych, politycznych i rynkowych na kolejny tydzień. Zero sensacji, tylko meritum.</p>
+              <h3>Raport 2 & 3: Przegląd Informacyjny – Polska i Świat</h3>
+              <p>Zwięzłe podsumowanie kluczowych wydarzeń minionego tygodnia oraz harmonogram najważniejszych decyzji makroekonomicznych, rynkowych i politycznych na kolejny tydzień.</p>
               <div class="option-sources">
-                <strong>Analizowane źródła:</strong> Forsal.pl (Gospodarka), Biznes PAP, Politico.eu (Europa), Rzeczpospolita Świat (Geopolityka), Zero.pl (Kraj).
+                <strong>Przeszukiwane źródła:</strong> Forsal.pl (Gospodarka i finanse), Biznes PAP, Politico.eu (Europa i regulacje), Rzeczpospolita Świat (Geopolityka), Zero.pl (Kraj).
               </div>
             </div>
           </label>
 
           <div class="email-field">
             <label for="email">Twój adres e-mail:</label>
-            <input type="email" id="email" name="email" placeholder="nazwisko@twojadomena.pl" required>
+            <input type="email" id="email" name="email" placeholder="twoj@adres.pl" required>
           </div>
 
           ${siteKey ? `<div class="cf-turnstile" data-sitekey="${siteKey}" style="margin-top:14px;"></div>` : ''}
@@ -1002,16 +1152,156 @@ function generujFormularzZapisuHtml(urlLogo) {
 
         <div id="statusMsg" class="msg-box"></div>
 
-        <div class="footer-note">
-          Szanujemy Twój czas i prywatność. Raport wysyłany jest raz w tygodniu. Możesz wypisać się w dowolnym momencie jednym kliknięciem.
+        <!-- BLOK PROPOZYCJI NOWYCH ŹRÓDEŁ -->
+        <div class="feedback-box">
+          <strong>Masz propozycję wartościowego źródła?</strong><br>
+          Projekt ma charakter otwarty na rozwój bazy wiedzy. Jeżeli znasz interesującą stronę (np. dom kultury, bibliotekę, lokalną instytucję edukacyjną lub artystyczną), napisz do mnie: 
+          <a href="${linkZgloszenia}">${kontaktEmail ? kontaktEmail : "skontaktuj się ze mną"}</a>. 
+          Wystarczy, że podasz link i w <strong>2 zwięzłych zdaniach</strong> wyjaśnisz, dlaczego warto go uwzględnić w analizie AI.<br>
+          <em>Uwaga: Zgodnie z profilem projektu, baza wydarzeń lokalnych dotyczy <strong>wyłącznie regionu Małopolski</strong> — proszę o uszanowanie tego kryterium.</em>
         </div>
 
+        <!-- NOTA PRAWNA I OCHRONA PRYWATNOŚCI -->
+        <div class="disclaimer-box">
+          <p>
+            <strong>Harmonogram wysyłki:</strong> Newsletter przesyłany jest regularnie raz w tygodniu, w każdy poniedziałek w przedziale godzinowym 7:00 – 8:00 rano czasu polskiego.
+          </p>
+          <p>
+            <strong>Charakter projektu:</strong> Newsletter jest całkowicie niekomercyjną inicjatywą prywatną, stworzoną i prowadzoną na własne potrzeby organizacyjne. Raport nie zawiera materiałów sponsorowanych ani treści reklamowych.
+          </p>
+          <p>
+            <strong>Bezpieczeństwo danych:</strong> Przekazane adresy e-mail są bezpiecznie przechowywane i służą wyłącznie do bezpośredniej wysyłki zestawień. Nigdy nie były i nie będą udostępniane jakimkolwiek podmiotom trzecim.
+          </p>
+          <p>
+            <strong>Finansowanie:</strong> Wszystkie opłaty związane z utrzymaniem infrastruktury i działaniem modeli analitycznych pokrywane są w całości z własnych środków prywatnych.
+          </p>
+          <p>
+            <strong>Rezygnacja z subskrypcji:</strong> Szanujemy Twój czas. Możesz wycofać zgodę w dowolnym momencie jednym kliknięciem — link do wypisania znajduje się na samym dole każdego newslettera.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- OKNO MODALNE Z PRZYKŁADOWYM RAPORTEM -->
+      <div id="previewModal" class="modal-overlay">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Podgląd przykładowego wydania Migawki Wydarzeń</h3>
+            <button type="button" id="closePreviewBtn" class="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            
+            <div style="border-top: 3px solid #AB6F71; border-bottom: 2px solid #e2e8f0; padding: 10px 0; margin-bottom: 16px;">
+              <h4 style="margin: 0; font-size: 18px; color: #0f172a;">Migawka Wydarzeń</h4>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Wydanie z poniedziałku &bull; 07:15 &bull; Wyselekcjonowane przez DeepSeek AI</p>
+            </div>
+
+            <!-- PRZYKŁAD SEKCJI 1 -->
+            <h5 style="color: #7f4448; border-bottom: 2px solid #AB6D70; padding-bottom: 4px; margin: 16px 0 8px 0; font-size: 13px;">
+              1. Wydarzenia dla Rodzin z Dziećmi (Kraków i Region)
+            </h5>
+            <table class="sample-table">
+              <thead>
+                <tr>
+                  <th>Obszar</th><th>Gdzie</th><th>Data / Dzień</th><th>Godzina</th><th>Wydarzenie</th><th>Opis merytoryczny</th><th>Wstęp</th><th>Źródło</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Kraków</strong></td>
+                  <td>Fort Borek</td>
+                  <td>11.10.2026 niedziela</td>
+                  <td>11:00</td>
+                  <td>Warsztaty ceramiczne dla rodzin</td>
+                  <td>Twórcze lepienie z gliny i modelowanie figurek dla dzieci z rodzicami.</td>
+                  <td>Bilety</td>
+                  <td><span class="sample-tag">Link ↗</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Kraków</strong></td>
+                  <td>Centrum Kultury Podgórza</td>
+                  <td>Trwa</td>
+                  <td>—</td>
+                  <td>Interaktywna wystawa zabawek dawnych</td>
+                  <td>Ekspozycja edukacyjna prezentująca gry i tradycyjne zabawki z XX wieku.</td>
+                  <td>Bezpłatne</td>
+                  <td><span class="sample-tag">Link ↗</span></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- PRZYKŁAD SEKCJI 2 I 3 -->
+            <h5 style="color: #8e6c31; border-bottom: 2px solid #C39D5C; padding-bottom: 4px; margin: 16px 0 8px 0; font-size: 13px;">
+              2. Co się wydarzyło w minionym tygodniu (Polska, Europa, Świat)
+            </h5>
+            <table class="sample-table">
+              <thead>
+                <tr>
+                  <th>Obszar</th><th>Data / Dzień</th><th>Kategoria</th><th>Temat</th><th>Streszczenie</th><th>Dla kogo</th><th>Źródło</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Polska</strong></td>
+                  <td>06.10.2026 wtorek</td>
+                  <td>Gospodarka</td>
+                  <td>Decyzja RPP ws. stóp</td>
+                  <td>Rada Polityki Pieniężnej pozostawiła stopy procentowe bez zmian.</td>
+                  <td>Inwestorzy</td>
+                  <td><span class="sample-tag" style="background:#C39D5C;">Link ↗</span></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h5 style="color: #1b3325; border-bottom: 2px solid #264533; padding-bottom: 4px; margin: 16px 0 8px 0; font-size: 13px;">
+              3. Co jest w planach? (Kolejny tydzień)
+            </h5>
+            <table class="sample-table">
+              <thead>
+                <tr>
+                  <th>Obszar</th><th>Data / Dzień</th><th>Kategoria</th><th>Temat</th><th>Streszczenie</th><th>Dla kogo</th><th>Źródło</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Świat</strong></td>
+                  <td>15.10.2026 czwartek</td>
+                  <td>Rynki USA</td>
+                  <td>Odczyt inflacji CPI w USA</td>
+                  <td>Kluczowe dane makroekonomiczne wpływające na oczekiwania co do stóp procentowych.</td>
+                  <td>Inwestorzy</td>
+                  <td><span class="sample-tag" style="background:#264533;">Link ↗</span></td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+        </div>
       </div>
 
       <script>
         const form = document.getElementById("subscribeForm");
         const submitBtn = document.getElementById("submitBtn");
         const statusMsg = document.getElementById("statusMsg");
+
+        // Obsługa modala podglądu
+        const openPreviewBtn = document.getElementById("openPreviewBtn");
+        const closePreviewBtn = document.getElementById("closePreviewBtn");
+        const previewModal = document.getElementById("previewModal");
+
+        openPreviewBtn.addEventListener("click", () => {
+          previewModal.style.display = "flex";
+        });
+
+        closePreviewBtn.addEventListener("click", () => {
+          previewModal.style.display = "none";
+        });
+
+        window.addEventListener("click", (e) => {
+          if (e.target === previewModal) {
+            previewModal.style.display = "none";
+          }
+        });
 
         form.addEventListener("submit", function(e) {
           e.preventDefault();
@@ -1037,7 +1327,7 @@ function generujFormularzZapisuHtml(urlLogo) {
             submitBtn.innerText = "Zapisz się bezpłatnie";
           })
           .catch(err => {
-            statusMsg.innerText = "Wystąpił błąd połączenia. Spróbuj ponownie za chwilę.";
+            statusMsg.innerText = "Wystąpił błąd komunikacji. Spróbuj ponownie za chwilę.";
             statusMsg.className = "msg-box msg-error";
             statusMsg.style.display = "block";
             submitBtn.disabled = false;
@@ -1281,5 +1571,37 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
     return JSON.parse(tresc);
   } catch (e) {
     return null;
+  }
+}
+function gdzieJestMojPlikEmails() {
+  let f1 = DriveApp.getFoldersByName("Automation");
+  if (!f1.hasNext()) {
+    Logger.log("BŁĄD: Nie znaleziono folderu Automation!");
+    return;
+  }
+  let folderAutomation = f1.next();
+  Logger.log("Folder Automation ID: " + folderAutomation.getId());
+
+  let f2 = folderAutomation.getFoldersByName("Migawka Wydarzeń");
+  if (!f2.hasNext()) {
+    Logger.log("BŁĄD: Nie znaleziono folderu Migawka Wydarzeń!");
+    return;
+  }
+  let folderMigawka = f2.next();
+  Logger.log("Folder Migawka Wydarzeń ID: " + folderMigawka.getId());
+
+  let pliki = folderMigawka.getFilesByName("emails.txt");
+  let licznik = 0;
+  while (pliki.hasNext()) {
+    licznik++;
+    let plik = pliki.next();
+    Logger.log("--- Znaleziony plik #" + licznik + " ---");
+    Logger.log("ID pliku: " + plik.getId());
+    Logger.log("Link do otwarcia: " + plik.getUrl());
+    Logger.log("Zawartość:\n" + plik.getBlob().getDataAsString());
+  }
+
+  if (licznik === 0) {
+    Logger.log("W folderze nie ma żadnego pliku emails.txt!");
   }
 }
