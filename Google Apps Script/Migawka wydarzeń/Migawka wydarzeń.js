@@ -1,9 +1,18 @@
 /**
  * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z OBSŁUGĄ PREFERENCJI ODBIORCÓW,
- * Logo MW v2.jpg ORAZ NOWYM FORMULARZEM ZAPISU.
+ * KONSOLIDACJĄ ZAPYTAŃ AI, STRAŻNIKIEM CZASU I FORMULARZEM ZAPISU.
  */
 
+// Globalny czas startu dla mechanizmu Watchdog
+let START_TIME = 0;
+const MAX_EXECUTION_TIME_MS = 270 * 1000; // 4.5 minuty (bezpieczny margines przed limitem 6 min)
+
+function czyCzasSieKonczy() {
+  return (new Date().getTime() - START_TIME) > MAX_EXECUTION_TIME_MS;
+}
+
 function generujRaportWiadomosci() {
+  START_TIME = new Date().getTime();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   const SOURCES_LOKALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_lokalne.json") || [];
@@ -22,9 +31,6 @@ function generujRaportWiadomosci() {
 
   let dzisiaj = new Date();
   let dzisiajStr = dzisiaj.toISOString().split('T')[0];
-  
-  let za7Dni = new Date(dzisiaj);
-  za7Dni.setDate(dzisiaj.getDate() + 7);
   
   let przed7Dniami = new Date(dzisiaj);
   przed7Dniami.setDate(dzisiaj.getDate() - 7);
@@ -63,7 +69,7 @@ function generujRaportWiadomosci() {
       let url = unikalneUrle[index];
       if (resp.getResponseCode() === 200) {
         let tekstZLinkami = wyczyscHtmlZZachowaniemLinkow(resp.getContentText(), url);
-        tresciStron[url] = tekstZLinkami.length > 25000 ? tekstZLinkami.substring(0, 25000) : tekstZLinkami;
+        tresciStron[url] = tekstZLinkami.length > 20000 ? tekstZLinkami.substring(0, 20000) : tekstZLinkami;
       } else {
         tresciStron[url] = ""; 
       }
@@ -76,47 +82,51 @@ function generujRaportWiadomosci() {
   let sekcja2_WydarzyloSie = [];
   let sekcja3_WPlanach = [];
 
-  // 1. ŹRÓDŁA LOKALNE
-  SOURCES_LOKALNE.forEach(source => {
+  // 1. ŹRÓDŁA LOKALNE - Jedno scalone zapytanie per źródło
+  for (let source of SOURCES_LOKALNE) {
+    if (czyCzasSieKonczy()) {
+      Logger.log("OSTRZEŻENIE: Zbliża się limit czasu GAS (270s). Przerywam pobieranie dalszych źródeł lokalnych.");
+      break;
+    }
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let rRodzinyTrwajace = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "rodziny_trwajace", filtrProfilu);
-      if (rRodzinyTrwajace && Array.isArray(rRodzinyTrwajace)) {
-        sekcja1_Rodziny = sekcja1_Rodziny.concat(rRodzinyTrwajace.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
-      }
-
-      let rRodzinyPrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "rodziny_przyszle", filtrProfilu);
-      if (rRodzinyPrzyszle && Array.isArray(rRodzinyPrzyszle)) {
-        sekcja1_Rodziny = sekcja1_Rodziny.concat(rRodzinyPrzyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
-      }
-
-      let rLokalnePrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_przeszle", filtrProfilu);
-      if (rLokalnePrzeszle && Array.isArray(rLokalnePrzeszle)) {
-        sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(rLokalnePrzeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
-      }
-
-      let rLokalnePlany = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "lokalne_plany", filtrProfilu);
-      if (rLokalnePlany && Array.isArray(rLokalnePlany)) {
-        sekcja3_WPlanach = sekcja3_WPlanach.concat(rLokalnePlany.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      let wynik = zapytajDeepSeekZbiorczoLokalne(source, tresc, kontekstCzasowy, filtrProfilu);
+      if (wynik) {
+        if (Array.isArray(wynik.rodziny_trwajace)) {
+          sekcja1_Rodziny = sekcja1_Rodziny.concat(wynik.rodziny_trwajace.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
+        if (Array.isArray(wynik.rodziny_przyszle)) {
+          sekcja1_Rodziny = sekcja1_Rodziny.concat(wynik.rodziny_przyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
+        if (Array.isArray(wynik.lokalne_przeszle)) {
+          sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(wynik.lokalne_przeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
+        if (Array.isArray(wynik.lokalne_plany)) {
+          sekcja3_WPlanach = sekcja3_WPlanach.concat(wynik.lokalne_plany.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
       }
     }
-  });
+  }
 
-  // 2. ŹRÓDŁA GLOBALNE / KRAJOWE
-  SOURCES_GLOBALNE.forEach(source => {
+  // 2. ŹRÓDŁA GLOBALNE / KRAJOWE - Jedno scalone zapytanie per źródło
+  for (let source of SOURCES_GLOBALNE) {
+    if (czyCzasSieKonczy()) {
+      Logger.log("OSTRZEŻENIE: Zbliża się limit czasu GAS (270s). Przerywam pobieranie dalszych źródeł globalnych.");
+      break;
+    }
     let tresc = tresciStron[source.url] || "";
     if (tresc.length > 0) {
-      let rGlobalnePrzeszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przeszle", filtrProfilu);
-      if (rGlobalnePrzeszle && Array.isArray(rGlobalnePrzeszle)) {
-        sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(rGlobalnePrzeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
-      }
-
-      let rGlobalnePrzyszle = zapytajDeepSeekDlaTresc(source, tresc, kontekstCzasowy, "globalne_przyszle", filtrProfilu);
-      if (rGlobalnePrzyszle && Array.isArray(rGlobalnePrzyszle)) {
-        sekcja3_WPlanach = sekcja3_WPlanach.concat(rGlobalnePrzyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+      let wynik = zapytajDeepSeekZbiorczoGlobalne(source, tresc, kontekstCzasowy, filtrProfilu);
+      if (wynik) {
+        if (Array.isArray(wynik.globalne_przeszle)) {
+          sekcja2_WydarzyloSie = sekcja2_WydarzyloSie.concat(wynik.globalne_przeszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
+        if (Array.isArray(wynik.globalne_przyszle)) {
+          sekcja3_WPlanach = sekcja3_WPlanach.concat(wynik.globalne_przyszle.filter(row => row && !row.join(" ").toUpperCase().includes("ODRZUCONE")));
+        }
       }
     }
-  });
+  }
 
   // Deduplikacja
   let mapaRodziny = new Map();
@@ -225,7 +235,7 @@ function normalizujDateZDniemTygodnia(wartoscDaty) {
 }
 
 // ============================================================================
-// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/LOGO.jpg)
+// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/Logo MW v2.jpg)
 // ============================================================================
 
 function wczytajLogoZDrive() {
@@ -238,10 +248,9 @@ function wczytajLogoZDrive() {
     if (!fBrand.hasNext()) return "";
     let folderBrand = fBrand.next();
 
-    // Preferencja dla Logo MW v2.jpg
     let pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
     if (!pliki.hasNext()) {
-      pliki = folderBrand.getFilesByName("Logo MW v2.jpg");
+      pliki = folderBrand.getFilesByName("LOGO.jpg");
     }
     if (pliki.hasNext()) {
       let plik = pliki.next();
@@ -406,7 +415,7 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
       let link = r[r.length - 1];
       let srodek = r.slice(1, r.length - 1);
       
-      let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 1;
+      let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 2;
       while (srodek.length < docelowaLiczbaPrzedLinkiem) {
         srodek.push("—");
       }
@@ -545,7 +554,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
         htmlBody: emailHtml
       });
       Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano do: ${emailCzysty} (Rodziny: ${subRodziny}, Świat: ${subSwiat})`);
-      if (index < odbiorcy.length - 1) Utilities.sleep(500);
+      if (index < odbiorcy.length - 1) Utilities.sleep(300);
     } catch (err) {
       Logger.log(`Błąd wysyłki do ${emailCzysty}: ${err.message}`);
     }
@@ -553,59 +562,42 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
 }
 
 // ============================================================================
-// KOMUNIKACJA Z DEEPSEEK AI
+// KOMUNIKACJA Z DEEPSEEK AI (SCALONE ZAPYTANIA ZBIORCZE)
 // ============================================================================
 
-function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaportu, filtrProfilu) {
+function zapytajDeepSeekZbiorczoLokalne(source, trescZrodla, kontekstCzasowy, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
   if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
-  let instrukcjaZadaniowa = "";
-  let strukturaKolumn = "";
 
-  if (typRaportu.startsWith("rodziny")) {
-    strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Tytuł / Wydarzenie", "Streszczenie merytoryczne", "Dla kogo", "Warunki wstępu", "Link"]';
-    
-    if (typRaportu === "rodziny_trwajace") {
-      instrukcjaZadaniowa = "WYSTAWY I ATRAKCJE DLA RODZIN TRWAJĄCE OBECNIE: wyszukaj wystawy, spektakle, place zabaw w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'. W kolumnie 'Data / Dzień' wpisz: 'Trwa'.";
-    } else {
-      instrukcjaZadaniowa = "NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI: spektakle, warsztaty, pikniki w Krakowie, Myślenicach i Tarnowie. W kolumnie 'Obszar' wpisz: 'Kraków', 'Myślenice' lub 'Tarnów'. W kolumnie 'Data / Dzień' podaj datę (np. 2026-10-24 lub 24.10.2026).";
-    }
-  } else {
-    strukturaKolumn = '["Obszar", "Gdzie", "Data / Dzień", "Godzina", "Kategoria", "Tytuł / Temat", "Streszczenie merytoryczne", "Dla kogo", "Link"]';
-
-    if (typRaportu === "lokalne_przeszle") {
-      instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (LOKALNIE): ważne uchwały, inwestycje, remonty lub wydarzenia. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
-    } else if (typRaportu === "lokalne_plany") {
-      instrukcjaZadaniowa = "CO JEST W PLANACH (LOKALNIE): zapowiedzi inwestycji, konsultacje, startujące remonty. W kolumnie 'Obszar' wpisz: 'Kraków' lub 'Małopolska'.";
-    } else if (typRaportu === "globalne_przeszle") {
-      instrukcjaZadaniowa = "CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (KRAJ/ŚWIAT): kluczowe dane rynkowe, banki centralne, geopolityka. W kolumnie 'Obszar' wpisz: 'Polska', 'Unia Europejska' lub 'Świat'.";
-    } else if (typRaportu === "globalne_przyszle") {
-      instrukcjaZadaniowa = "CO JEST W PLANACH (KRAJ/ŚWIAT): zaplanowane publikacje danych makro (CPI, PKB), posiedzenia stóp, szczyty. W kolumnie 'Obszar' wpisz: 'Polska', 'Unia Europejska' lub 'Świat'.";
-    }
-  }
-
-  let systemPrompt = 
-    "Jesteś precyzyjnym asystentem analitycznym. Wybieraj wyłącznie najważniejsze pozycje (maksymalnie po 6-8 wpisów).\n\n" +
+  const systemPrompt = 
+    "Jesteś precyzyjnym asystentem analitycznym. Przeanalizuj treść źródła i wyodrębnij pozycje do 4 kategorii:\n" +
+    "1. 'rodziny_trwajace': WYSTAWY I ATRAKCJE DLA RODZIN TRWAJĄCE OBECNIE (Kraków, Myślenice, Tarnów). W kolumnie 'Data / Dzień' wpisz: 'Trwa'.\n" +
+    "2. 'rodziny_przyszle': NADCHODZĄCE WYDARZENIA DLA RODZIN NA 7 DNI (spektakle, warsztaty, pikniki w Krakowie, Myślenicach, Tarnowie). Podaj konkretną datę.\n" +
+    "3. 'lokalne_przeszle': CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH LOKALNIE (uchwały, inwestycje, remonty - Kraków, Małopolska).\n" +
+    "4. 'lokalne_plany': CO JEST W PLANACH LOKALNIE (zapowiedzi inwestycji, konsultacje, startujące remonty - Kraków, Małopolska).\n\n" +
     kontekstCzasowy + "\n\n" +
     filtrProfilu + "\n\n" +
-    instrukcjaZadaniowa + "\n\n" +
     "REGUŁY DOTYCZĄCE KOLUMN:\n" +
-    "1. 'Obszar': wyłącznie nazwa ogólna (Kraków, Myślenice, Tarnów, Małopolska, Polska, Unia Europejska, Świat).\n" +
-    "2. 'Gdzie': dokładne miejsce (np. 'Teatr Groteska', 'Fort Borek'). Jeśli dotyczy całego obszaru lub brak punktu, wpisz '—'.\n" +
-    "3. 'Data / Dzień': wpisz datę (np. 2026-10-24 lub 24.10.2026) albo 'Trwa'.\n" +
-    "4. Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
-    "5. 'Warunki wstępu': wpisz 'Bezpłatne', 'Bilety' lub 'Rejestracja'.\n" +
-    "6. W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
-    "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"\n\n" +
-    "Zwróć poprawny JSON: {\"dane\": [[...], [...]]}. Układ pól w każdym wierszu musi ściśle odpowiadać tablicy: " + strukturaKolumn + ".";
+    "- Struktura dla 'rodziny_trwajace' i 'rodziny_przyszle': [\"Obszar\", \"Gdzie\", \"Data / Dzień\", \"Godzina\", \"Tytuł / Wydarzenie\", \"Streszczenie merytoryczne\", \"Dla kogo\", \"Warunki wstępu\", \"Link\"]\n" +
+    "- Struktura dla 'lokalne_przeszle' i 'lokalne_plany': [\"Obszar\", \"Gdzie\", \"Data / Dzień\", \"Godzina\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo\", \"Link\"]\n" +
+    "- 'Obszar': wyłącznie Kraków, Myślenice, Tarnów lub Małopolska.\n" +
+    "- Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
+    "- W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
+    "Zwróć poprawny JSON o strukturze:\n" +
+    "{\n" +
+    "  \"rodziny_trwajace\": [[...]],\n" +
+    "  \"rodziny_przyszle\": [[...]],\n" +
+    "  \"lokalne_przeszle\": [[...]],\n" +
+    "  \"lokalne_plany\": [[...]]\n" +
+    "}\nJeśli brak wpisów w danej kategorii, zwróć pustą tablicę []. Maksymalnie po 6-8 najistotniejszych wpisów.";
 
   const payload = {
     model: "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Wyodrębnij pozycje w formacie JSON." }
+      { role: "user", content: "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"" }
     ],
     response_format: { type: "json_object" },
     temperature: 0.1,
@@ -620,55 +612,101 @@ function zapytajDeepSeekDlaTresc(source, trescZrodla, kontekstCzasowy, typRaport
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-    
+
     let jsonResp = JSON.parse(response.getContentText());
     if (jsonResp.error) {
-      Logger.log("API Error: " + JSON.stringify(jsonResp.error));
-      return [];
+      Logger.log("API Error (Lokalne): " + JSON.stringify(jsonResp.error));
+      return null;
     }
 
-    let content = jsonResp.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
-    let rows = bezpiecznyParseJson(content);
-    
-    return rows.map(row => {
-      if (!Array.isArray(row) || row.length === 0) return row;
-      let lastIdx = row.length - 1;
-      let czystyUrl = wyodrebnijCzystyUrl(row[lastIdx]);
-      if (!czystyUrl) {
-        for (let i = 0; i < row.length - 1; i++) {
-          let u = wyodrebnijCzystyUrl(row[i]);
-          if (u) {
-            czystyUrl = u;
-            break;
-          }
-        }
-      }
-      row[lastIdx] = czystyUrl || source.url;
-      return row;
-    });
+    let parsed = JSON.parse(jsonResp.choices[0].message.content);
+    return normalizujLinkiWZestawie(parsed, source.url);
   } catch (e) {
-    Logger.log("Błąd DeepSeek: " + e.message);
-    return [];
+    Logger.log("Błąd DeepSeek (Lokalne): " + e.message);
+    return null;
   }
 }
 
-function bezpiecznyParseJson(surowyTekst) {
+function zapytajDeepSeekZbiorczoGlobalne(source, trescZrodla, kontekstCzasowy, filtrProfilu) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
+  if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
+
+  const url = "https://api.deepseek.com/chat/completions";
+
+  const systemPrompt = 
+    "Jesteś precyzyjnym asystentem analitycznym. Przeanalizuj treść źródła i wyodrębnij pozycje do 2 kategorii:\n" +
+    "1. 'globalne_przeszle': CO SIĘ WYDARZYŁO W MINIONYCH 7 DNIACH (KRAJ/ŚWIAT) - kluczowe dane rynkowe, banki centralne, geopolityka.\n" +
+    "2. 'globalne_przyszle': CO JEST W PLANACH (KRAJ/ŚWIAT) - zaplanowane publikacje danych makro (CPI, PKB), posiedzenia stóp procentowych, szczyty.\n\n" +
+    kontekstCzasowy + "\n\n" +
+    filtrProfilu + "\n\n" +
+    "REGUŁY DOTYCZĄCE KOLUMN:\n" +
+    "- Struktura obu kategorii: [\"Obszar\", \"Gdzie\", \"Data / Dzień\", \"Godzina\", \"Kategoria\", \"Tytuł / Temat\", \"Streszczenie merytoryczne\", \"Dla kogo\", \"Link\"]\n" +
+    "- 'Obszar': wyłącznie Polska, Unia Europejska lub Świat.\n" +
+    "- Streszczenie merytoryczne: MAKSYMALNIE 1 konkretne zdanie (do 160 znaków)!\n" +
+    "- W kolumnie 'Link': podaj bezpośredni adres URL. Jeśli brak, wstaw: '" + source.url + "'.\n\n" +
+    "Zwróć poprawny JSON o strukturze:\n" +
+    "{\n" +
+    "  \"globalne_przeszle\": [[...]],\n" +
+    "  \"globalne_przyszle\": [[...]]\n" +
+    "}\nJeśli brak wpisów w danej kategorii, zwróć pustą tablicę []. Maksymalnie po 6-8 najistotniejszych wpisów.";
+
+  const payload = {
+    model: "deepseek-chat",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "Tekst źródła (" + source.url + "):\n\"\"\"" + trescZrodla + "\"\"\"" }
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.1,
+    max_tokens: 4096
+  };
+
   try {
-    return JSON.parse(surowyTekst).dane || [];
+    let response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      headers: { "Authorization": "Bearer " + apiKey },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    let jsonResp = JSON.parse(response.getContentText());
+    if (jsonResp.error) {
+      Logger.log("API Error (Globalne): " + JSON.stringify(jsonResp.error));
+      return null;
+    }
+
+    let parsed = JSON.parse(jsonResp.choices[0].message.content);
+    return normalizujLinkiWZestawie(parsed, source.url);
   } catch (e) {
-    try {
-      let idxDanych = surowyTekst.indexOf('"dane"');
-      if (idxDanych !== -1) {
-        let fragment = surowyTekst.substring(idxDanych);
-        let ostatniPelnyWiersz = fragment.lastIndexOf("]");
-        if (ostatniPelnyWiersz !== -1) {
-          let odzyskany = "{" + fragment.substring(0, ostatniPelnyWiersz + 1) + "]}";
-          return JSON.parse(odzyskany).dane || [];
-        }
-      }
-    } catch (e2) {}
-    return [];
+    Logger.log("Błąd DeepSeek (Globalne): " + e.message);
+    return null;
   }
+}
+
+function normalizujLinkiWZestawie(obiektDanych, domyslnyUrl) {
+  if (!obiektDanych) return null;
+  for (let klucz in obiektDanych) {
+    if (Array.isArray(obiektDanych[klucz])) {
+      obiektDanych[klucz] = obiektDanych[klucz].map(row => {
+        if (!Array.isArray(row) || row.length === 0) return row;
+        let lastIdx = row.length - 1;
+        let czystyUrl = wyodrebnijCzystyUrl(row[lastIdx]);
+        if (!czystyUrl) {
+          for (let i = 0; i < row.length - 1; i++) {
+            let u = wyodrebnijCzystyUrl(row[i]);
+            if (u) {
+              czystyUrl = u;
+              break;
+            }
+          }
+        }
+        row[lastIdx] = czystyUrl || domyslnyUrl;
+        return row;
+      });
+    }
+  }
+  return obiektDanych;
 }
 
 // ============================================================================
@@ -1472,7 +1510,6 @@ function wczytajSubskrybentowZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
     let subRodziny = pref.includes("rodziny");
     let subSwiat = pref.includes("swiat");
 
-    // Jeśli w pliku były zapisane same emaile (starszy format), domyślnie wysyłaj oba raporty
     if (!czesci[1]) {
       subRodziny = true;
       subSwiat = true;
@@ -1502,18 +1539,18 @@ function sortujIGrupujWyniki(dane, indeksGlowny, indeksPodrzedny) {
   });
 }
 
-function zapiszDoArkusza(ss, nazwaZakładki, dane, nagłówki) {
-  let sheet = ss.getSheetByName(nazwaZakładki) || ss.insertSheet(nazwaZakładki);
+function zapiszDoArkusza(ss, nazwaZakladki, dane, naglowki) {
+  let sheet = ss.getSheetByName(nazwaZakladki) || ss.insertSheet(nazwaZakladki);
   sheet.clear();
-  sheet.appendRow(nagłówki);
-  sheet.getRange(1, 1, 1, nagłówki.length).setFontWeight("bold").setBackground("#f1f5f9");
+  sheet.appendRow(naglowki);
+  sheet.getRange(1, 1, 1, naglowki.length).setFontWeight("bold").setBackground("#f1f5f9");
   if (dane && dane.length > 0) {
-    let startRow = (dane[0][0] === nagłówki[0]) ? 1 : 0;
+    let startRow = (dane[0][0] === naglowki[0]) ? 1 : 0;
     for (let i = startRow; i < dane.length; i++) {
       sheet.appendRow(dane[i]);
     }
   }
-  sheet.autoResizeColumns(1, nagłówki.length);
+  sheet.autoResizeColumns(1, naglowki.length);
 }
 
 function wyczyscHtmlZZachowaniemLinkow(html, baseUrl) {
@@ -1573,6 +1610,7 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
     return null;
   }
 }
+
 function gdzieJestMojPlikEmails() {
   let f1 = DriveApp.getFoldersByName("Automation");
   if (!f1.hasNext()) {
