@@ -93,8 +93,14 @@ function parsePaymentDate(value) {
 
 
 // --- REJESTR PŁATNOŚCI Z GMAILA (HYBRYDA: GEMINI + FALLBACK REGEX) ---
-const GEMINI_API_KEY = "AQ.Ab8RN6I0WpBLguoGYsJ1-0Oqs431qXc8cWGLsuqZK5H7D29kuQ";
-
+// Bezpieczne pobranie klucza z magazynu właściwości projektu:
+function getGeminiApiKey() {
+  const key = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  if (!key) {
+    throw new Error("Brak klucza 'GEMINI_API_KEY' w Script Properties! Ustaw go w Ustawieniach projektu.");
+  }
+  return key;
+}
 // Nazwy etykiet z hierarchią z Twojego konta:
 const LABEL_PARENT = "Rejestr Płatności i Przelewów";
 const LABEL_TO_PROCESS_NAME = `${LABEL_PARENT}/Rejestr płatności`;
