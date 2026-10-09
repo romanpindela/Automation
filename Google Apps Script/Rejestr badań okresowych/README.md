@@ -1,106 +1,97 @@
-# Rejestr Badań Okresowych – Dwukierunkowa Synchronizacja: Google Sheets ↔ Google Calendar
+# Medical Checkup Tracker – Bidirectional Sync: Google Sheets ↔ Google Calendar
 
-Skrypt zawarty w pliku Rejestr badań okresowych.txt to zaawansowane narzędzie automatyzujące zarządzanie badaniami lekarskimi i wizytami. Głównym zadaniem jest **dwukierunkowa synchronizacja** danych wprowadzanych w arkuszu Google Sheets ("e-Zdrowie") z wybranym Kalendarzem Google (np. "Słońce").
+The script provided in `Rejestr badań okresowych.txt` is an advanced automation tool for managing medical appointments and checkups. Its primary purpose is **bidirectional synchronization** between a Google Sheets spreadsheet ("e-Health") and a selected Google Calendar (e.g. "Family Calendar").
 
-## Co to jest i jak to działa?
+## Overview & Workflow
 
-Skrypt Google Apps Script odczytuje dane z arkusza kalkulacyjnego i tworzy/aktualizuje wydarzenia w kalendarzu, a także potrafi aktualizować arkusz na podstawie zmian wprowadzonych bezpośrednio w kalendarzu.
+The Google Apps Script reads records from the spreadsheet, creates/updates calendar events, and synchronizes calendar edits back to the sheet.
 
-Działa on według następującej logiki:
+1. **Spreadsheet Edits (Direction 1: Sheet ➔ Calendar):** When editing a row in the sheet, the script reads data:
+   * Specifying an appointment date and title creates a new event in Google Calendar.
+   * Events include detailed metadata: Patient, Exam Type, Location, Date & Time (or all-day), Status, Notes, and a direct link to the spreadsheet row.
+   * Dynamically assigns contextual emoji icons based on medical specialty (e.g., 🩸 for blood tests, 🦷 for dental, 🩺 for ultrasound/X-ray).
+   * Appointment status (e.g., "completed", "cancelled") color-codes the calendar event (greying out cancelled/completed visits).
+   * Automatically resolves and attaches street addresses via Google Maps geocoding from clinic or doctor names.
+   * **Results Folder Provisioning:** Entering "Yes" into "Results Link" prompts the script to generate a dedicated Google Drive folder formatted as `YYYY.MM.DD - [Patient] - [Exam] - [Clinic]` and updates the cell with the folder link.
+   * Clearing the date field automatically **removes** the linked calendar event.
+   * Stores unique calendar IDs in `Event ID` column to eliminate duplicates.
 
-1.  **Edycja w Arkuszu (Kierunek 1):** Gdy edytujesz wiersz w arkuszu, skrypt automatycznie odczytuje dane.
-    *   Jeśli wpiszesz datę badania i tytuł, tworzy nowe wydarzenie w Kalendarzu Google.
-    *   Wydarzenie zawiera szczegóły: Kto (pacjent), Rodzaj badania, Miejsce, Datę i Godzinę (lub jest całodniowe), Status, Uwagi oraz bezpośredni link do wiersza w arkuszu e-Zdrowie.
-    *   Dynamicznie przypisuje emotikony (ikony) w zależności od rodzaju badania (np. 🩸 dla krwi, 🦷 dla stomatologa, 🩺 dla USG/RTG).
-    *   Status badania (np. "zamknięte", "odwołane") zmienia kolor wydarzenia w kalendarzu (wyszarza je).
-    *   Skrypt automatycznie przypisuje adres do pola lokalizacji za pomocą geokodowania Google Maps na podstawie nazwy placówki/lekarza.
-    *   **Generowanie Folderu na Wyniki:** Jeśli w kolumnie "Link do Wyników" wpiszesz "Tak", skrypt utworzy w Google Drive folder o nazwie `YYYY.MM.DD - [Pacjent] - [Badanie] - [Placówka]` i podmieni wpis na link do tego folderu.
-    *   Wpisanie pustej daty w arkuszu automatycznie **usuwa** powiązane wydarzenie z kalendarza.
-    *   Skrypt zapisuje unikalne ID wydarzenia w kolumnie `ID Wydarzenia`, zapobiegając duplikatom.
+2. **Calendar Edits (Direction 2: Calendar ➔ Sheet):** The `syncFromCalendarToSheet` function audits events by stored IDs.
+   * Rescheduling an event date or time in Google Calendar automatically updates the respective cells (Date and Time) in your sheet.
+   * Deleting an event in Google Calendar removes the linked ID from the spreadsheet.
 
-2.  **Zmiana w Kalendarzu (Kierunek 2):** Funkcja `syncFromCalendarToSheet` sprawdza wydarzenia w kalendarzu na podstawie zapisanych ID.
-    *   Jeśli zmienisz datę lub godzinę wydarzenia bezpośrednio w Kalendarzu Google, skrypt po uruchomieniu zaktualizuje odpowiednie komórki (Termin i Godzinę) w Twoim arkuszu.
-    *   Jeśli usuniesz wydarzenie z kalendarza, skrypt usunie powiązane ID z arkusza.
+## Required Sheet Schema (Columns)
 
-## Wymagana struktura arkusza (Kolumny)
+The script relies on a predefined column order. The worksheet (recommended title: `BADANIA`, configurable in code) requires the following column structure:
 
-Skrypt oczekuje ściśle określonej kolejności kolumn. Arkusz (najlepiej o nazwie "BADANIA", ale można to zmienić w konfiguracji) musi posiadać nagłówki. Dane pobierane są według poniższych numerów kolumn:
+* **Column 1 (A):** Patient Name
+* **Column 2 (B):** Exam Title / Type
+* **Column 3 (C):** Additional Notes (e.g., "Fasting required")
+* **Column 4 (D):** Facility / Clinic / Doctor
+* **Column 5 (E):** Appointment Date
+* **Column 6 (F):** Appointment Time
+* **Column 7 (G):** Appointment Status (e.g., scheduled, to be scheduled, completed, cancelled)
+* **Column 8 (H):** Results Link (Enter "Yes" to auto-provision folder, or paste custom URL)
+* **Column 9 (I):** Event ID (Auto-populated by script)
 
-*   **Kolumna 1 (A):** Kto (Imię pacjenta, np. Roman)
-*   **Kolumna 2 (B):** Tytuł / Rodzaj badania
-*   **Kolumna 3 (C):** Dodatkowe uwagi (np. "Przyjść na czczo")
-*   **Kolumna 4 (D):** Miejsce / Placówka / Lekarz
-*   **Kolumna 5 (E):** Termin badania (Data)
-*   **Kolumna 6 (F):** godzina badania
-*   **Kolumna 7 (G):** Status badania (np. umówiona, do umówienia, zamknięte, odwołane)
-*   **Kolumna 8 (H):** Link do Wyników (Wpisz "Tak", aby wygenerować folder, lub podaj gotowy link)
-*   **Kolumna 9 (I):** ID Wydarzenia (Pole uzupełniane automatycznie przez skrypt)
+## Setup Guide
 
-Zrzut ekranu `Tabela_badań.jpg` w repozytorium przedstawia poprawny układ arkusza. Zrzut ekranu `Kalendarz_z_badaniem.jpg` pokazuje, jak szczegółowo wygenerowane jest wydarzenie w kalendarzu.
+### Step 1: Prepare Google Calendar
+1. Open Google Calendar.
+2. Select your target calendar.
+3. Open **Settings and sharing**.
+4. Scroll down to **Integrate calendar**.
+5. Copy the **Calendar ID** (e.g. `c_xyz123@group.calendar.google.com`).
 
-## Pełna instrukcja uruchomienia
+### Step 2: Configure Apps Script in Google Sheets
+1. Open your Google Sheet.
+2. Go to **Extensions** ➔ **Apps Script**.
+3. Replace existing code with the contents of `Rejestr badań okresowych.txt`.
+4. Locate the `CONFIG` object at the top of the file:
+   ```javascript
+   const CONFIG = {
+     SHEET_NAME: 'BADANIA', // Change if your sheet uses a different name
+     CALENDAR_ID: 'YOUR_CALENDAR_ID@group.calendar.google.com', // Paste copied ID here
+   // ...
+   ```
+5. Replace the placeholder with your actual Calendar ID.
+6. Save the project (`Ctrl+S`).
 
-### Krok 1: Przygotowanie Kalendarza Google
+### Step 3: Configure Automation Triggers
+1. In the Apps Script sidebar, click the clock icon (**Triggers**).
+2. Click **+ Add Trigger** (bottom right).
 
-1.  Wejdź w swój Kalendarz Google.
-2.  Znajdź kalendarz (np. "Słońce").
-3.  Przejdź do **Ustawień** wybranego kalendarza.
-4.  Zjedź w dół do sekcji **Integrowanie kalendarza**.
-5.  Skopiuj **Identyfikator kalendarza** (np. `c_xyz123@group.calendar.google.com`).
+**Trigger 1: Sheet Edits (Sheet ➔ Calendar)**
+* Choose function: `syncRowToCalendar`
+* Deployment: `Head`
+* Event source: `From spreadsheet`
+* Event type: `On edit`
+* Click **Save** and grant account permissions.
 
-### Krok 2: Konfiguracja Skryptu w Arkuszu
-
-1.  Otwórz swój plik Google Sheets (np. e-Zdrowie).
-2.  W górnym menu wybierz **Rozszerzenia** -> **Apps Script**.
-3.  Wyczyść domyślny kod i wklej tam całą zawartość z pliku `Rejestr badań okresowych.txt`.
-4.  W pierwszych linijkach kodu znajdź obiekt `CONFIG`:
-    ```javascript
-    const CONFIG = {
-      SHEET_NAME: 'BADANIA', // Zmień, jeśli Twój arkusz nazywa się inaczej
-      CALENDAR_ID: 'IDKALENDARZA@group.calendar.google.com', // TUTAJ WKLEJ SKOPIOWANE ID
-    // ...
-    ```
-5.  Zastąp `IDKALENDARZA@group.calendar.google.com` swoim identyfikatorem kalendarza skopiowanym w Kroku 1.
-6.  Zapisz projekt (ikona dyskietki lub `Ctrl+S`).
-
-### Krok 3: Konfiguracja Wyzwalaczy (Triggers) – Bardzo Ważne!
-
-Aby skrypt działał automatycznie przy każdej edycji oraz potrafił synchronizować zmiany z kalendarza, musisz ustawić tzw. Wyzwalacze (Triggers).
-
-1.  W edytorze Apps Script po lewej stronie kliknij ikonę zegara (**Wyzwalacze**).
-2.  Kliknij **Dodaj regułę** (w prawym dolnym rogu).
-
-**Wyzwalacz 1: Aktualizacja przy edycji Arkusza (Arkusz -> Kalendarz)**
-*   Wybierz funkcję: `syncRowToCalendar`
-*   Wybierz wdrożenie: `Główny`
-*   Wybierz źródło zdarzenia: `Z arkusza kalkulacyjnego`
-*   Wybierz typ zdarzenia: `Przy edycji`
-*   Kliknij **Zapisz** i nadaj uprawnienia (Autoryzuj aplikację).
-
-**Wyzwalacz 2: Synchronizacja zmian z Kalendarza (Kalendarz -> Arkusz)**
-*   Kliknij ponownie **Dodaj regułę**.
-*   Wybierz funkcję: `syncFromCalendarToSheet`
-*   Wybierz wdrożenie: `Główny`
-*   Wybierz źródło zdarzenia: `Oparte na czasie`
-*   Wybierz typ wyzwalacza oparty na czasie: `Wyzwalacz godzinny`
-*   Wybierz odstęp czasu (w godzinach): np. `Co godzinę` (lub inną preferowaną częstotliwość).
-*   Kliknij **Zapisz**.
+**Trigger 2: Calendar Sync (Calendar ➔ Sheet)**
+* Click **+ Add Trigger**.
+* Choose function: `syncFromCalendarToSheet`
+* Deployment: `Head`
+* Event source: `Time-driven`
+* Type: `Hour timer`
+* Interval: `Every hour`
+* Click **Save**.
 
 ---
 
+## Screenshots
 
-## ScreenShots
+### Google Calendar Event
+![Google Calendar Event](assets/Kalendarz_z_badaniem.jpg)
 
-### Kalendarz Google z badaniem
-![Standard Run](assets/Kalendarz_z_badaniem.jpg)
+### Medical Registry Google Sheet
+![Medical Records Sheet](assets/Tabela_badań.jpg)
 
-### Tabela badań w formacie gsheet
-![Standard Run](assets/Tabela_badań.jpg)
+---
 
+## Author & Version
 
-## Autor i Wersja
-
-*   **Autor:** Roman Pindela
-*   **Email:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
-*   **GitHub:** [@romanpindela](https://github.com/romanpindela)
-*   **Wersja:** 1.0.0
+* **Author:** Roman Pindela
+* **Email:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
+* **GitHub:** [@romanpindela](https://github.com/romanpindela)
+* **Version:** 1.0.0

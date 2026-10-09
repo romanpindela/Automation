@@ -1,11 +1,11 @@
 /**
- * MIGAWKA WYDARZEŃ - KOMPLETNY KOD Z OBSŁUGĄ PREFERENCJI ODBIORCÓW,
- * KONSOLIDACJĄ ZAPYTAŃ AI, STRAŻNIKIEM CZASU I FORMULARZEM ZAPISU.
+ * EVENT SNAPSHOT (MIGAWKA WYDARZEŃ) - COMPLETE CODE WITH RECIPIENT PREFERENCES,
+ * AI QUERY CONSOLIDATION, TIME WATCHDOG, AND SUBSCRIPTION FORM.
  */
 
-// Globalny czas startu dla mechanizmu Watchdog
+// Global start time for Watchdog mechanism
 let START_TIME = 0;
-const MAX_EXECUTION_TIME_MS = 270 * 1000; // 4.5 minuty (bezpieczny margines przed limitem 6 min)
+const MAX_EXECUTION_TIME_MS = 270 * 1000; // 4.5 minutes (safe margin before 6 min limit)
 
 function czyCzasSieKonczy() {
   return (new Date().getTime() - START_TIME) > MAX_EXECUTION_TIME_MS;
@@ -19,7 +19,7 @@ function generujRaportWiadomosci() {
   const SOURCES_GLOBALNE = wczytajJsonZPlikuWFolderze("Automation", "Migawka Wydarzeń", "zrodla_globalne.json") || [];
   let filtrProfilu = wczytajPlikTekstowyWFolderze("Automation", "Migawka Wydarzeń", "prompt_migawka_wydarzen.txt");
   
-  // Wczytanie listy subskrybentów wraz z preferencjami: [{ email: "...", subRodziny: true, subSwiat: true }]
+  // Load subscriber list with preferences: [{ email: "...", subRodziny: true, subSwiat: true }]
   let subskrybenci = wczytajSubskrybentowZPliku("Automation", "Migawka Wydarzeń", "emails.txt");
   if (!subskrybenci || subskrybenci.length === 0) {
     subskrybenci = [{ email: Session.getActiveUser().getEmail(), subRodziny: true, subSwiat: true }];
@@ -75,17 +75,17 @@ function generujRaportWiadomosci() {
       }
     });
   } catch (e) {
-    Logger.log("Błąd pobierania stron: " + e.message);
+    Logger.log("Error fetching websites: " + e.message);
   }
 
   let sekcja1_Rodziny = [];
   let sekcja2_WydarzyloSie = [];
   let sekcja3_WPlanach = [];
 
-  // 1. ŹRÓDŁA LOKALNE - Jedno scalone zapytanie per źródło
+  // 1. LOCAL SOURCES - One consolidated query per source
   for (let source of SOURCES_LOKALNE) {
     if (czyCzasSieKonczy()) {
-      Logger.log("OSTRZEŻENIE: Zbliża się limit czasu GAS (270s). Przerywam pobieranie dalszych źródeł lokalnych.");
+      Logger.log("WARNING: Approaching GAS execution time limit (270s). Halting further local sources.");
       break;
     }
     let tresc = tresciStron[source.url] || "";
@@ -108,10 +108,10 @@ function generujRaportWiadomosci() {
     }
   }
 
-  // 2. ŹRÓDŁA GLOBALNE / KRAJOWE - Jedno scalone zapytanie per źródło
+  // 2. GLOBAL / NATIONAL SOURCES - One consolidated query per source
   for (let source of SOURCES_GLOBALNE) {
     if (czyCzasSieKonczy()) {
-      Logger.log("OSTRZEŻENIE: Zbliża się limit czasu GAS (270s). Przerywam pobieranie dalszych źródeł globalnych.");
+      Logger.log("WARNING: Approaching GAS execution time limit (270s). Halting further global sources.");
       break;
     }
     let tresc = tresciStron[source.url] || "";
@@ -128,7 +128,7 @@ function generujRaportWiadomosci() {
     }
   }
 
-  // Deduplikacja
+  // Deduplication
   let mapaRodziny = new Map();
   sekcja1_Rodziny.forEach(item => {
     let tytul = (item[4] || "").toLowerCase().trim();
@@ -150,7 +150,7 @@ function generujRaportWiadomosci() {
   });
   sekcja3_WPlanach = Array.from(mapaPlany.values());
 
-  // Uzupełnienie dnia tygodnia w kolumnie z datą
+  // Populate day of week in date column
   sekcja1_Rodziny = sekcja1_Rodziny.map(row => {
     if (row && row.length > 2) row[2] = normalizujDateZDniemTygodnia(row[2]);
     return row;
@@ -192,7 +192,7 @@ function generujRaportWiadomosci() {
 }
 
 // ============================================================================
-// FORMATOWANIE DATY Z DNIEM TYGODNIA
+// DATE FORMATTING WITH DAY OF THE WEEK
 // ============================================================================
 
 function normalizujDateZDniemTygodnia(wartoscDaty) {
@@ -235,7 +235,7 @@ function normalizujDateZDniemTygodnia(wartoscDaty) {
 }
 
 // ============================================================================
-// POBIERANIE LOGO Z DYSKU GOOGLE (Automation/Migawka Wydarzeń/Brand/Logo MW v2.jpg)
+// FETCH LOGO FROM GOOGLE DRIVE (Automation/Migawka Wydarzeń/Brand/Logo MW v2.jpg)
 // ============================================================================
 
 function wczytajLogoZDrive() {
@@ -258,13 +258,13 @@ function wczytajLogoZDrive() {
       return "https://drive.google.com/thumbnail?id=" + plik.getId() + "&sz=w500";
     }
   } catch (e) {
-    Logger.log("Błąd odczytu Logo MW v2.jpg: " + e.message);
+    Logger.log("Error reading Logo MW v2.jpg: " + e.message);
   }
   return "";
 }
 
 // ============================================================================
-// POBIERANIE LINKÓW DO HERBÓW
+// FETCH LINKS TO EMBLEMS / COATS OF ARMS
 // ============================================================================
 
 function wczytajIkonyHerbowZDrive() {
@@ -306,14 +306,14 @@ function wczytajIkonyHerbowZDrive() {
       }
     }
   } catch (e) {
-    Logger.log("Błąd odczytu ikon JPG: " + e.message);
+    Logger.log("Error reading JPG icons: " + e.message);
   }
 
   return urleIkon;
 }
 
 // ============================================================================
-// GENEROWANIE STRUKTURY RAPORTU EMAIL DLA KONKRETNEGO ODBIORCY
+// GENERATE EMAIL REPORT STRUCTURE FOR SPECIFIC RECIPIENT
 // ============================================================================
 
 function generujCialoRaportuEmailHtml(daneRodziny, daneWydarzylo, danePlany, dzisiajStr, mapaUrlIkon, urlLogo, subRodziny, subSwiat) {
@@ -521,7 +521,7 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
     let subRodziny = typeof sub.subRodziny !== "undefined" ? sub.subRodziny : true;
     let subSwiat = typeof sub.subSwiat !== "undefined" ? sub.subSwiat : true;
 
-    // Jeżeli subskrybent odznaczył wszystko, nie wysyłamy pustej wiadomości
+    // If subscriber unchecked all options, do not send empty message
     if (!subRodziny && !subSwiat) return;
 
     let cialoRaportuHtml = generujCialoRaportuEmailHtml(
@@ -553,21 +553,21 @@ function wyslijRaportEmailTabelaryczny(daneRodziny, daneWydarzylo, danePlany, dz
         subject: temat,
         htmlBody: emailHtml
       });
-      Logger.log(`[${index + 1}/${odbiorcy.length}] Wysłano do: ${emailCzysty} (Rodziny: ${subRodziny}, Świat: ${subSwiat})`);
+      Logger.log(`[${index + 1}/${odbiorcy.length}] Sent to: ${emailCzysty} (Families: ${subRodziny}, World: ${subSwiat})`);
       if (index < odbiorcy.length - 1) Utilities.sleep(300);
     } catch (err) {
-      Logger.log(`Błąd wysyłki do ${emailCzysty}: ${err.message}`);
+      Logger.log(`Error sending to ${emailCzysty}: ${err.message}`);
     }
   });
 }
 
 // ============================================================================
-// KOMUNIKACJA Z DEEPSEEK AI (SCALONE ZAPYTANIA ZBIORCZE)
+// COMMUNICATION WITH DEEPSEEK AI (CONSOLIDATED BATCH QUERIES)
 // ============================================================================
 
 function zapytajDeepSeekZbiorczoLokalne(source, trescZrodla, kontekstCzasowy, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
-  if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
+  if (!apiKey) throw new Error("Missing DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
 
@@ -615,21 +615,21 @@ function zapytajDeepSeekZbiorczoLokalne(source, trescZrodla, kontekstCzasowy, fi
 
     let jsonResp = JSON.parse(response.getContentText());
     if (jsonResp.error) {
-      Logger.log("API Error (Lokalne): " + JSON.stringify(jsonResp.error));
+      Logger.log("API Error (Local): " + JSON.stringify(jsonResp.error));
       return null;
     }
 
     let parsed = JSON.parse(jsonResp.choices[0].message.content);
     return normalizujLinkiWZestawie(parsed, source.url);
   } catch (e) {
-    Logger.log("Błąd DeepSeek (Lokalne): " + e.message);
+    Logger.log("DeepSeek error (Local): " + e.message);
     return null;
   }
 }
 
 function zapytajDeepSeekZbiorczoGlobalne(source, trescZrodla, kontekstCzasowy, filtrProfilu) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("DEEPSEEK_API_KEY");
-  if (!apiKey) throw new Error("Brak klucza DEEPSEEK_API_KEY.");
+  if (!apiKey) throw new Error("Missing DEEPSEEK_API_KEY.");
 
   const url = "https://api.deepseek.com/chat/completions";
 
@@ -672,14 +672,14 @@ function zapytajDeepSeekZbiorczoGlobalne(source, trescZrodla, kontekstCzasowy, f
 
     let jsonResp = JSON.parse(response.getContentText());
     if (jsonResp.error) {
-      Logger.log("API Error (Globalne): " + JSON.stringify(jsonResp.error));
+      Logger.log("API Error (Global): " + JSON.stringify(jsonResp.error));
       return null;
     }
 
     let parsed = JSON.parse(jsonResp.choices[0].message.content);
     return normalizujLinkiWZestawie(parsed, source.url);
   } catch (e) {
-    Logger.log("Błąd DeepSeek (Globalne): " + e.message);
+    Logger.log("DeepSeek error (Global): " + e.message);
     return null;
   }
 }
@@ -710,7 +710,7 @@ function normalizujLinkiWZestawie(obiektDanych, domyslnyUrl) {
 }
 
 // ============================================================================
-// WEB APP: SUBSKRYPCJA I UNSUBSCRIBE
+// WEB APP: SUBSCRIPTION AND UNSUBSCRIBE
 // ============================================================================
 
 function doGet(e) {
@@ -789,7 +789,7 @@ function zweryfikujCaptcha(token) {
 }
 
 // ============================================================================
-// WIDOK STRONY ZAPISU (HTML + CSS)
+// SIGNUP PAGE VIEW (HTML + CSS)
 // ============================================================================
 
 function generujFormularzZapisuHtml(urlLogo) {
@@ -1322,7 +1322,7 @@ function generujFormularzZapisuHtml(urlLogo) {
         const submitBtn = document.getElementById("submitBtn");
         const statusMsg = document.getElementById("statusMsg");
 
-        // Obsługa modala podglądu
+        // Preview modal handlers
         const openPreviewBtn = document.getElementById("openPreviewBtn");
         const closePreviewBtn = document.getElementById("closePreviewBtn");
         const previewModal = document.getElementById("previewModal");
@@ -1404,14 +1404,14 @@ function generujKomunikatKartyHtml(tytul, kolor, tresc) {
 }
 
 // ============================================================================
-// OBSŁUGA PLIKU emails.txt Z PREFERENCJAMI ODBIORCÓW
+// MANAGE emails.txt WITH RECIPIENT PREFERENCES
 // ============================================================================
 
 /**
- * Format zapisu w emails.txt:
- * email@domena.pl;rodziny,swiat
- * email2@domena.pl;rodziny
- * email3@domena.pl;swiat
+ * Format in emails.txt:
+ * email@domain.com;rodziny,swiat
+ * email2@domain.com;rodziny
+ * email3@domain.com;swiat
  */
 function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku, nowyEmail, subRodziny, subSwiat) {
   try {
@@ -1456,7 +1456,7 @@ function dodajAdresEmailDoPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPlik
     plik.setContent(noweWiersze.join("\n"));
     return { sukces: true, duplikat: duplikat };
   } catch (err) {
-    Logger.log("Błąd dodawania e-maila: " + err.message);
+    Logger.log("Error adding email: " + err.message);
     return { sukces: false };
   }
 }
@@ -1483,7 +1483,7 @@ function usunAdresEmailZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwaPliku,
     plik.setContent(noweLinie.join("\n"));
     return true;
   } catch (err) {
-    Logger.log("Błąd usuwania e-maila: " + err.message);
+    Logger.log("Error removing email: " + err.message);
     return false;
   }
 }
@@ -1526,7 +1526,7 @@ function wczytajSubskrybentowZPliku(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
 }
 
 // ============================================================================
-// FUNKCJE POMOCNICZE
+// HELPER FUNCTIONS
 // ============================================================================
 
 function sortujIGrupujWyniki(dane, indeksGlowny, indeksPodrzedny) {
@@ -1614,32 +1614,32 @@ function wczytajJsonZPlikuWFolderze(nazwaGlownegoFolderu, nazwaPodfolderu, nazwa
 function gdzieJestMojPlikEmails() {
   let f1 = DriveApp.getFoldersByName("Automation");
   if (!f1.hasNext()) {
-    Logger.log("BŁĄD: Nie znaleziono folderu Automation!");
+    Logger.log("ERROR: Automation folder not found!");
     return;
   }
   let folderAutomation = f1.next();
-  Logger.log("Folder Automation ID: " + folderAutomation.getId());
+  Logger.log("Automation folder ID: " + folderAutomation.getId());
 
   let f2 = folderAutomation.getFoldersByName("Migawka Wydarzeń");
   if (!f2.hasNext()) {
-    Logger.log("BŁĄD: Nie znaleziono folderu Migawka Wydarzeń!");
+    Logger.log("ERROR: Migawka Wydarzeń folder not found!");
     return;
   }
   let folderMigawka = f2.next();
-  Logger.log("Folder Migawka Wydarzeń ID: " + folderMigawka.getId());
+  Logger.log("Migawka Wydarzeń folder ID: " + folderMigawka.getId());
 
   let pliki = folderMigawka.getFilesByName("emails.txt");
   let licznik = 0;
   while (pliki.hasNext()) {
     licznik++;
     let plik = pliki.next();
-    Logger.log("--- Znaleziony plik #" + licznik + " ---");
-    Logger.log("ID pliku: " + plik.getId());
-    Logger.log("Link do otwarcia: " + plik.getUrl());
-    Logger.log("Zawartość:\n" + plik.getBlob().getDataAsString());
+    Logger.log("--- Found file #" + licznik + " ---");
+    Logger.log("File ID: " + plik.getId());
+    Logger.log("Open link: " + plik.getUrl());
+    Logger.log("Content:\n" + plik.getBlob().getDataAsString());
   }
 
   if (licznik === 0) {
-    Logger.log("W folderze nie ma żadnego pliku emails.txt!");
+    Logger.log("No emails.txt file found in the folder!");
   }
 }

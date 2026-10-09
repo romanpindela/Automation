@@ -6,17 +6,17 @@ function syncPaymentsToCalendar() {
   const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
   
   if (!calendar) {
-    Logger.log('BŁĄD: Nie znaleziono kalendarza o ID: ' + CALENDAR_ID);
+    Logger.log('ERROR: Calendar not found with ID: ' + CALENDAR_ID);
     return;
   }
   
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) {
-    Logger.log('Brak danych do przetworzenia.');
+    Logger.log('No data to process.');
     return;
   }
 
-  // Odczytujemy indeksy kolumn z nagłówka
+  // Read column indices from header
   const headers = data[0].map(h => String(h).trim().toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
   const colKontrahent = headers.indexOf('kontrahent');
   const colTytul = headers.indexOf('tytul przelewu');
@@ -43,33 +43,33 @@ function syncPaymentsToCalendar() {
 
     const termin = parsePaymentDate(rawTermin);
     
-    // Zamiana 'ł' na 'l' oraz usunięcie pozostałych ogonków
+    // Replace 'ł' with 'l' and remove remaining diacritics
     const status = rawStatus.replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    Logger.log(`Wiersz ${rowIndex}: status="${status}", termin=${Boolean(termin)}, brak_eventId=${!eventId}`);
+    Logger.log(`Row ${rowIndex}: status="${status}", due_date=${Boolean(termin)}, missing_eventId=${!eventId}`);
 
-    // 1. DO ZAPŁATY
+    // 1. DO ZAPŁATY (PENDING)
     if ((status === 'do zaplaty' || status === 'do zapłaty') && termin && !eventId) {
-      const eventTitle = `💰 Płatność: ${kontrahent} (${kwota} ${waluta})`;
-      const eventDesc = `Kontrahent: ${kontrahent}\nTytuł: ${tytul}\nKwota: ${kwota} ${waluta}\nTermin: ${termin.toISOString().slice(0, 10)}`;
+      const eventTitle = `💰 Payment: ${kontrahent} (${kwota} ${waluta})`;
+      const eventDesc = `Contractor: ${kontrahent}\nTitle: ${tytul}\nAmount: ${kwota} ${waluta}\nDue Date: ${termin.toISOString().slice(0, 10)}`;
       
       const event = calendar.createAllDayEvent(eventTitle, termin, { description: eventDesc });
       const newId = event.getId();
       sheet.getRange(rowIndex, colEventId + 1).setValue(newId);
-      Logger.log(`SUKCES: Utworzono wydarzenie w kalendarzu, ID: ${newId}`);
+      Logger.log(`SUCCESS: Created calendar event, ID: ${newId}`);
     }
     
-    // 2. ZAPŁACONE / ANULOWANE
+    // 2. ZAPŁACONE / ANULOWANE (PAID / CANCELLED)
     const isPaidOrCancelled = ['zaplacone', 'zaplacona', 'oplacone', 'oplacona', 'anulowane', 'anulowana'].includes(status);
     if (isPaidOrCancelled && eventId) {
       try {
         const event = calendar.getEventById(eventId);
         if (event) {
           event.deleteEvent();
-          Logger.log(`Wiersz ${rowIndex}: Usunięto wydarzenie z kalendarza.`);
+          Logger.log(`Row ${rowIndex}: Deleted calendar event.`);
         }
       } catch (e) {
-        Logger.log(`Błąd usuwania: ${e.message}`);
+        Logger.log(`Deletion error: ${e.message}`);
       }
       sheet.getRange(rowIndex, colEventId + 1).setValue('');
     }
@@ -92,16 +92,16 @@ function parsePaymentDate(value) {
 
 
 
-// --- REJESTR PŁATNOŚCI Z GMAILA (HYBRYDA: GEMINI + FALLBACK REGEX) ---
-// Bezpieczne pobranie klucza z magazynu właściwości projektu:
+// --- PAYMENT REGISTRY FROM GMAIL (HYBRID: GEMINI + FALLBACK REGEX) ---
+// Securely fetch key from project Script Properties:
 function getGeminiApiKey() {
   const key = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
   if (!key) {
-    throw new Error("Brak klucza 'GEMINI_API_KEY' w Script Properties! Ustaw go w Ustawieniach projektu.");
+    throw new Error("Missing 'GEMINI_API_KEY' in Script Properties! Configure it in Project Settings.");
   }
   return key;
 }
-// Nazwy etykiet z hierarchią z Twojego konta:
+// Label hierarchy from account:
 const LABEL_PARENT = "Rejestr Płatności i Przelewów";
 const LABEL_TO_PROCESS_NAME = `${LABEL_PARENT}/Rejestr płatności`;
 const LABEL_PROCESSED_NAME = `${LABEL_PARENT}/Zarejestrowano w płatnościach`;
@@ -112,7 +112,7 @@ function przetworzOznaczonePlatnosci() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
-    Logger.log("Błąd: Nie znaleziono arkusza o nazwie " + SHEET_NAME);
+    Logger.log("Error: Sheet not found with name: " + SHEET_NAME);
     return;
   }
 
@@ -126,11 +126,11 @@ function przetworzOznaczonePlatnosci() {
   const threads = GmailApp.search(searchQuery, 0, 10);
 
   if (threads.length === 0) {
-    Logger.log("Brak nowych wątków z etykietą: " + LABEL_TO_PROCESS_NAME);
+    Logger.log("No new threads with label: " + LABEL_TO_PROCESS_NAME);
     return;
   }
 
-  Logger.log(`Znaleziono ${threads.length} wątków do przetworzenia.`);
+  Logger.log(`Found ${threads.length} threads to process.`);
 
   for (const thread of threads) {
     const threadId = thread.getId();
@@ -153,23 +153,23 @@ function przetworzOznaczonePlatnosci() {
         .trim();
 
       let bestBody = plain.length >= 30 ? plain : htmlStripped;
-      threadContent += `--- WIADOMOŚĆ ${idx + 1} | Od: ${msg.getFrom()} | Temat: ${msg.getSubject()} ---\n${bestBody}\n\n`;
+      threadContent += `--- MESSAGE ${idx + 1} | From: ${msg.getFrom()} | Subject: ${msg.getSubject()} ---\n${bestBody}\n\n`;
     });
 
-    Logger.log("Pobrana treść wątku:\n" + threadContent);
+    Logger.log("Retrieved thread content:\n" + threadContent);
 
     let entries = [];
     
-    // 1. Próba analizy przez Gemini
+    // 1. Attempt analysis via Gemini
     try {
       entries = wyciagnijDaneGemini(threadContent);
     } catch (e) {
-      Logger.log("Gemini API niedostępne lub błąd: " + e.toString());
+      Logger.log("Gemini API unavailable or error: " + e.toString());
     }
 
-    // 2. Jeśli Gemini nie zwróciło danych (np. 503 lub puste []), uruchamiamy regułę zapasową
+    // 2. If Gemini returned no data (e.g. 503 or empty []), run fallback regex
     if (!entries || entries.length === 0) {
-      Logger.log("Uruchamiam regułę awaryjną (regex/heurystyka) dla e-maila...");
+      Logger.log("Running fallback rule (regex/heuristics) for email...");
       entries = awaryjnaEkstrakcja(threadContent, thread.getFirstMessageSubject());
     }
 
@@ -184,7 +184,7 @@ function przetworzOznaczonePlatnosci() {
       entries.forEach(item => {
         const uwagiTekst = item.uwagi ? `${item.uwagi} | E-mail: ${emailLink}` : `E-mail: ${emailLink}`;
 
-        // Kolumny: ID, Data transakcji, Kontrahent, Tytuł przelewu, Kwota, Waluta, Termin płatności, Status, ID Wydarzenia Kalendarza, Uwagi
+        // Columns: ID, Transaction date, Contractor, Payment title, Amount, Currency, Due date, Status, Calendar Event ID, Notes
         sheet.appendRow([
           currentId++,
           item.data_transakcji || "",
@@ -201,15 +201,15 @@ function przetworzOznaczonePlatnosci() {
 
       thread.removeLabel(labelInput);
       thread.addLabel(labelDone);
-      Logger.log(`SUKCES: Dodano ${entries.length} pozycji do rejestru.`);
+      Logger.log(`SUCCESS: Added ${entries.length} items to registry.`);
     } else {
-      Logger.log("Nie udało się odczytać kwot ani przez AI, ani przez reguły awaryjne.");
+      Logger.log("Failed to extract amounts via AI or fallback rules.");
     }
   }
 }
 
 /**
- * Główna ekstrakcja przez Gemini API
+ * Main extraction via Gemini API
  */
 function wyciagnijDaneGemini(emailText) {
   const models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"];
@@ -253,26 +253,26 @@ ${emailText}`;
             .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
           let parsed = JSON.parse(txt);
           if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].kwota) {
-            Logger.log(`Sukces z modelu: ${model}`);
+            Logger.log(`Success from model: ${model}`);
             return parsed;
           }
         }
       }
     } catch (e) {
-      Logger.log(`Błąd zapytania do ${model}: ${e.toString()}`);
+      Logger.log(`Query error for ${model}: ${e.toString()}`);
     }
   }
   return null;
 }
 
 /**
- * Mechanizm zapasowy (fallback): działa w 100% lokalnie w Google Apps Script, bez zewnętrznego API,
- * wyciągając dane o płatnościach za dzieci z przedszkola/szkoły/rachunków.
+ * Fallback mechanism: works 100% locally in Google Apps Script without external API,
+ * extracting payment information for children from kindergarten/school/bills.
  */
 function awaryjnaEkstrakcja(text, subject) {
   const wyniki = [];
   
-  // Szukanie terminu płatności w treści
+  // Search for payment due date in text
   let terminPlatnosci = "";
   const matchTermin = text.match(/termin\s*p[łl]atno[śs]ci[:\s]*(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})/i);
   let rok = new Date().getFullYear();
@@ -288,14 +288,14 @@ function awaryjnaEkstrakcja(text, subject) {
   
   const dataWydarzenia = `${rok}-${String(miesiac).padStart(2, '0')}-10`;
 
-  // Szukanie wzorców dla Adrianny i Mai
+  // Search patterns for children
   const dzieci = [
     { imie: "Adrianna", re: /Adriann[ay]?/i },
     { imie: "Maja", re: /Maj[aięe]/i }
   ];
 
   dzieci.forEach(d => {
-    // Szukanie kwoty w pobliżu imienia dziecka (np. 351,36 zł Adrianna lub Adrianna ... 351,36 zł)
+    // Search amount near child name (e.g. 351,36 zł Adrianna or Adrianna ... 351,36 zł)
     const reKwota = new RegExp(`(?:${d.imie}[^\\d]{0,40}(\\d+[,\\.]\\d{2})|(\\d+[,\\.]\\d{2})\\s*z[łl][^\\n]{0,30}${d.imie})`, 'i');
     const matchKw = text.match(reKwota);
     
@@ -303,7 +303,7 @@ function awaryjnaEkstrakcja(text, subject) {
       const kwotaStr = (matchKw[1] || matchKw[2]).replace(',', '.');
       const kwota = parseFloat(kwotaStr);
 
-      // Szukanie konta bankowego (26 cyfr) w pobliżu
+      // Search bank account (26 digits) nearby
       let konto = "";
       const matchKonto = text.match(/(\d{2}(?:\s*\d{4}){6})/);
       if (matchKonto) {
@@ -317,7 +317,7 @@ function awaryjnaEkstrakcja(text, subject) {
         kwota: kwota,
         waluta: "zł",
         termin_platnosci: terminPlatnosci,
-        uwagi: `Przetworzono automatycznie (${subject || 'Płatność'})`
+        uwagi: `Processed automatically (${subject || 'Payment'})`
       });
     }
   });
@@ -335,9 +335,9 @@ function testDostepnychModeli() {
     const models = data.models
       ? data.models.map(m => m.name.replace("models/", ""))
       : [];
-    Logger.log("Dostępne modele dla Twojego klucza:");
+    Logger.log("Available models for your key:");
     models.forEach(m => Logger.log(" -> " + m));
   } else {
-    Logger.log("Błąd odpowiedzi: " + response.getContentText());
+    Logger.log("Response error: " + response.getContentText());
   }
 }

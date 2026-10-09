@@ -1,98 +1,96 @@
-# Rejestr Płatności i Przelewów – Integracja Google Sheets z Google Calendar & Gmail AI
+# Payment & Transfer Tracker – Google Sheets, Google Calendar & Gmail AI Integration
 
-Skrypt zawarty w projekcie to kompleksowe narzędzie automatyzujące zarządzanie domowymi i firmowymi płatnościami[cite: 2]. Łączy skrzynkę pocztową Gmail, arkusz kalkulacyjny Google Sheets oraz Kalendarz Google w jeden spójny ekosystem[cite: 2].
-
----
-
-## Główne moduły systemu
-
-### 1. Inteligentna rejestracja płatności z e-maili (Gmail + Gemini AI + Fallback)
-Skrypt przeszukuje oznaczone wiadomości w Gmailu i automatycznie dodaje nowe wiersze do rejestru:
-* **Wykrywanie przez etykiety:** Przetwarza wiadomości oznaczone podetykietą `Rejestr Płatności i Przelewów/Rejestr płatności`.
-* **Ekstrakcja przez Gemini AI:** Wykorzystuje modele Google Gemini do inteligentnego parsowania nieustrukturyzowanego tekstu (kwoty, kontrahenci, tytuły przelewów, dedykowane numery rachunków, terminy).
-* **Obsługa wielu pozycji w jednym mailu:** Bez problemu rozbija wiadomości zbiorcze (np. opłaty za dwoje dzieci w przedszkolu/szkole) na osobne wiersze tabeli.
-* **Własne instrukcje:** Umożliwia przekazanie maila dalej do siebie z własną notatką (np. *„termin wydarzenia 10. dzień miesiąca”*), którą AI uwzględnia przy kalkulacji dat.
-* **Bezpośredni link do e-maila:** W kolumnie `Uwagi` automatycznie zapisuje klikalny link prowadzący bezpośrednio do źródłowego wątku w Gmailu.
-* **Niezawodny fallback:** W przypadku przeciążenia API (błędy 503/429) lub problemów z modelem, skrypt przełącza się na zapasowe reguły heurystyczne/regex, gwarantując ciągłość rejestracji bez pomijania opłat.
-* **Brak duplikatów:** Po poprawnym przetworzeniu etykieta wejściowa zostaje zdjęta, a wątek otrzymuje status `Rejestr Płatności i Przelewów/Zarejestrowano w płatnościach`.
-
-### 2. Dwukierunkowa synchronizacja z Kalendarzem Google[cite: 2]
-Skrypt zarządza wydarzeniami w kalendarzu na podstawie statusu płatności[cite: 2]:
-* **Wpisy „Do zapłaty”:** Tworzy całodniowe wydarzenie w kalendarzu z powiadomieniem o nadchodzącym terminie i zapisuje `ID Wydarzenia Kalendarza` w arkuszu[cite: 2].
-* **Wpisy „Zapłacone” / „Anulowane”:** Usuwa skojarzone wydarzenie z kalendarza, zwalniając harmonogram[cite: 2].
-* **Identyfikacja kolumn:** Niezależna od wielkości liter czy polskich znaków diakrytycznych[cite: 2].
+A comprehensive automation tool managing personal and business payments. It unites Gmail inbox messages, Google Sheets, and Google Calendar into a cohesive tracking workflow.
 
 ---
 
-## Wymagana struktura arkusza (Kolumny)
+## Core System Modules
 
-Arkusz musi zawierać w pierwszym wierszu następujące nagłówki[cite: 2]:
+### 1. Smart Payment Parsing from Email (Gmail + Gemini AI + Fallback)
+The script searches labeled Gmail threads and appends new rows into the payment ledger:
+* **Label Detection:** Processes messages tagged with `Rejestr Płatności i Przelewów/Rejestr płatności`.
+* **Gemini AI Extraction:** Leverages Google Gemini models to extract structured data from unformatted text (amounts, payees, transfer descriptions, dedicated account numbers, due dates).
+* **Multi-Item Support:** Automatically splits multi-item bills (e.g. tuition fees for multiple children) into separate table rows.
+* **Custom Forwarding Notes:** Allows forwarding emails to yourself with custom notes (e.g., *"due date: 10th of every month"*), which the AI incorporates into date calculations.
+* **Direct Email Deep-Linking:** Automatically writes a clickable link leading directly to the source Gmail conversation in the `Notes` column.
+* **Resilient Fallback Engine:** If API limits are reached (503/429 errors), the script switches to heuristic regex rules, ensuring zero missed payments.
+* **Duplicate Prevention:** Upon successful logging, the input label is removed and replaced by `Rejestr Płatności i Przelewów/Zarejestrowano w płatnościach`.
+
+### 2. Bidirectional Google Calendar Sync
+Manages calendar events based on payment statuses:
+* **"To pay" Entries:** Creates an all-day event in the calendar with reminder notifications and stores the `Calendar Event ID` in the sheet.
+* **"Paid" / "Cancelled" Entries:** Removes the linked calendar event, freeing up the schedule.
+* **Column Flexibility:** Column lookups are case-insensitive and accent-insensitive.
+
+---
+
+## Required Sheet Columns
+
+The spreadsheet header row must include the following column titles:
 
 * `ID`
-* `Data transakcji`
-* `Kontrahent`[cite: 2]
-* `Tytuł przelewu`[cite: 2]
-* `Kwota`[cite: 2]
-* `Waluta`[cite: 2]
-* `Termin płatności`[cite: 2]
-* `Status` (*Do zapłaty, Zapłacone, Zapłacona, Opłacone, Opłacona, Anulowane, Anulowana*)[cite: 2]
-* `ID Wydarzenia Kalendarza` (zarządzane automatycznie przez skrypt)[cite: 2]
-* `Uwagi` (podsumowanie AI oraz link do e-maila)
+* `Transaction Date`
+* `Payee`
+* `Transfer Title`
+* `Amount`
+* `Currency`
+* `Due Date`
+* `Status` (*To pay, Paid, Cancelled*)
+* `Calendar Event ID` (auto-managed by script)
+* `Notes` (AI summary and Gmail thread link)
 
 ---
 
-## Pełna instrukcja uruchomienia
+## Installation & Setup
 
-### Krok 1: Przygotowanie etykiet w Gmailu
-Utwórz strukturę etykiet (hierarchiczną):
-1. Etykieta główna: `Rejestr Płatności i Przelewów`
-2. Podetykieta wejściowa: `Rejestr Płatności i Przelewów/Rejestr płatności`
-3. Podetykieta archiwalna: `Rejestr Płatności i Przelewów/Zarejestrowano w płatnościach`
+### Step 1: Set up Gmail Labels
+Create the nested label hierarchy in Gmail:
+1. Parent Label: `Rejestr Płatności i Przelewów`
+2. Intake Label: `Rejestr Płatności i Przelewów/Rejestr płatności`
+3. Archive Label: `Rejestr Płatności i Przelewów/Zarejestrowano w płatnościach`
 
-*(Opcjonalnie)* Skonfiguruj filtr Gmaila: jeśli mail od zaufanego nadawcy lub przekazany przez Ciebie zawiera w treści `#rejestr`, automatycznie nadaj etykietę `Rejestr Płatności i Przelewów/Rejestr płatności`.
+*(Optional)* Configure a Gmail filter: if an incoming or forwarded email contains `#rejestr`, apply label `Rejestr Płatności i Przelewów/Rejestr płatności`.
 
-### Krok 2: Konfiguracja Kalendarza Google[cite: 2]
-1. Przejdź do **Ustawień** wybranego Kalendarza Google[cite: 2].
-2. Z sekcji **Integrowanie kalendarza** skopiuj **Identyfikator kalendarza**[cite: 2].
+### Step 2: Configure Google Calendar
+1. Open Google Calendar **Settings**.
+2. Under **Integrate calendar**, copy your **Calendar ID**.
 
-### Krok 3: Konfiguracja kodu Apps Script
-1. Otwórz arkusz Google Sheets z tabelą płatności[cite: 2].
-2. Wejdź w **Rozszerzenia** -> **Apps Script**[cite: 2].
-3. Wklej kod źródłowy projektu.
-4. Uzupełnij parametry konfiguracyjne:
-   * `CALENDAR_ID` – identyfikator Twojego kalendarza[cite: 2].
-   * `GEMINI_API_KEY` – darmowy klucz pobrany z [Google AI Studio](https://aistudio.google.com/).
-5. Zapisz projekt (`Ctrl + S`)[cite: 2].
+### Step 3: Configure Apps Script Code
+1. Open your payments Google Sheet.
+2. Select **Extensions** ➔ **Apps Script**.
+3. Paste the project source code.
+4. Set configuration constants:
+   * `CALENDAR_ID` – your target calendar ID.
+   * `GEMINI_API_KEY` – your API key from [Google AI Studio](https://aistudio.google.com/).
+5. Save the project (`Ctrl + S`).
 
-### Krok 4: Autoryzacja i wyzwalacze czasowe
-1. Wybierz funkcję `przetworzOznaczonePlatnosci` i kliknij **Uruchom**. Zaakceptuj uprawnienia do konta Google.
-2. Przejdź do zakładki **Wyzwalacze** (ikona zegara po lewej stronie):
-   * Dodaj wyzwalacz dla `przetworzOznaczonePlatnosci` (np. co 10–15 minut ze sterowaniem czasowym).
-   * Dodaj wyzwalacz dla `syncPaymentsToCalendar` (np. raz na godzinę lub raz dziennie)[cite: 2].
-
----
-
-## Zrzuty ekranu
-
-### Kalendarz Google - wydarzenie stworzone automatycznie z tabeli gsheet[cite: 2]
-![Standard Run](assets/Kalendarz_google.jpg)[cite: 2]
-
-### Tabela w formacie gsheet[cite: 2]
-![Standard Run](assets/Tabeta_w_gsheet.jpg)[cite: 2]
-
-Dane_o_przelewach_w_emailu.jpg
-
-### Dane o przelewach w emailu [cite: 2]
-![Standard Run](assets/Dane_o_przelewach_w_emailu.jpg)[cite: 2]
-
-### Zarejestrowane płatności z emaila[cite: 2]
-![Standard Run](assets/Zarejestrowane_płatności_z_emaila.jpg)[cite: 2]
+### Step 4: Authorization & Triggers
+1. Select function `przetworzOznaczonePlatnosci` and click **Run**. Grant requested Google permissions.
+2. Go to **Triggers** (clock icon):
+   * Add trigger for `przetworzOznaczonePlatnosci` (time-driven: every 10–15 minutes).
+   * Add trigger for `syncPaymentsToCalendar` (time-driven: once an hour or once daily).
 
 ---
 
-## Autor i Wersja
+## Screenshots
 
-* **Autor:** Roman Pindela[cite: 2]
-* **Email:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)[cite: 2]
-* **GitHub:** [@romanpindela](https://github.com/romanpindela)[cite: 2]
-* **Wersja:** 1.7.0
+### Google Calendar Event
+![Google Calendar Event](assets/Kalendarz_google.jpg)
+
+### Payments Google Sheet Table
+![Payments Google Sheet](assets/Tabeta_w_gsheet.jpg)
+
+### Transfer Details in Email
+![Transfer Details in Email](assets/Dane_o_przelewach_w_emailu.jpg)
+
+### Processed Payments Extracted from Email
+![Processed Payments](assets/Zarejestrowane_płatności_z_emaila.jpg)
+
+---
+
+## Author & Version
+
+* **Author:** Roman Pindela
+* **Email:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
+* **GitHub:** [@romanpindela](https://github.com/romanpindela)
+* **Version:** 1.7.0

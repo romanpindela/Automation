@@ -1,7 +1,7 @@
 function checkMarketData() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   
-  // --- 1. FUNKCJE POBIERAJĄCE DANE ---
+  // --- 1. DATA FETCHING FUNCTIONS ---
   
   function getYahoo(ticker) {
     try {
@@ -12,7 +12,7 @@ function checkMarketData() {
         return parseFloat(json.chart.result[0].meta.regularMarketPrice).toFixed(2);
       }
     } catch(e) {}
-    return "Brak danych";
+    return "No data";
   }
 
   function getCoinbase(pair) {
@@ -24,7 +24,7 @@ function checkMarketData() {
         return parseFloat(json.data.amount).toFixed(2);
       }
     } catch(e) {}
-    return "Brak danych";
+    return "No data";
   }
   
   function getGlobalCrypto(type) {
@@ -34,10 +34,10 @@ function checkMarketData() {
       if (response.getResponseCode() === 200) {
         var json = JSON.parse(response.getContentText());
         if (type === 'btc_dom') return parseFloat(json[0].btc_d).toFixed(2) + "%";
-        if (type === 'marketcap') return "$" + (parseFloat(json[0].total_mcap) / 1000000000000).toFixed(2) + " bln";
+        if (type === 'marketcap') return "$" + (parseFloat(json[0].total_mcap) / 1000000000000).toFixed(2) + " T";
       }
     } catch(e) {}
-    return "Brak danych";
+    return "No data";
   }
 
   function getCNBC(ticker) {
@@ -51,10 +51,10 @@ function checkMarketData() {
         }
       }
     } catch(e) {}
-    return "Brak danych";
+    return "No data";
   }
 
-  // --- 2. ZBIERANIE WSZYSTKICH DANYCH ---
+  // --- 2. GATHERING ALL DATA ---
   
   var data = {
     "DOT": getCoinbase("DOT-USD"),
@@ -80,7 +80,7 @@ function checkMarketData() {
     "DE10Y": getCNBC("DE10Y-DE")
   };
 
-  // --- 3. ZAPIS DO ARKUSZA GSHEET ---
+  // --- 3. WRITE TO GSHEET SPREADSHEET ---
   var date = new Date();
   
   sheet.appendRow([
@@ -90,20 +90,20 @@ function checkMarketData() {
     data.US10Y, data.US30Y, data.JP10Y, data.US20Y, data.DE10Y, "" 
   ]);
   
-  // --- 4. WYSYŁKA E-MAILA HTML ---
+  // --- 4. SEND HTML EMAIL ---
   var email = Session.getActiveUser().getEmail();
-  var subject = 'Raport Rynkowy | Aktualizacja ' + Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  var subject = 'Market Report | Update ' + Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
   
   var htmlBody = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
       
       <div style="border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 25px;">
-        <h2 style="margin: 0; font-size: 22px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #111;">Raport Rynkowy</h2>
-        <p style="margin: 6px 0 0 0; color: #666; font-size: 13px;">Zestawienie wygenerowane ${Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy, HH:mm")}</p>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #111;">Market Report</h2>
+        <p style="margin: 6px 0 0 0; color: #666; font-size: 13px;">Report generated on ${Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd, HH:mm")}</p>
       </div>
       
       <!-- PORTFOLIO -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Moje Portfolio</h3>
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">My Portfolio</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
         <tr>
           <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Polkadot (DOT)</td>
@@ -115,8 +115,8 @@ function checkMarketData() {
         </tr>
       </table>
 
-      <!-- KRYPTOWALUTY -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Kryptowaluty</h3>
+      <!-- CRYPTOCURRENCIES -->
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Cryptocurrencies</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">BTC/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BTC}</td></tr>
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">ETH/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ETH}</td></tr>
@@ -124,44 +124,44 @@ function checkMarketData() {
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Total Marketcap</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.TOTAL_MCAP}</td></tr>
       </table>
 
-      <!-- INDEKSY -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Indeksy Giełdowe</h3>
+      <!-- INDICES -->
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Stock Indices</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">S&P 500</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.SP500}</td></tr>
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">NASDAQ 100</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.NASDAQ100}</td></tr>
       </table>
 
-      <!-- WALUTY -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Waluty (Forex)</h3>
+      <!-- CURRENCIES -->
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Currencies (Forex)</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">USD/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.USDPLN} PLN</td></tr>
         <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">EUR/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.EURPLN} PLN</td></tr>
       </table>
 
-      <!-- SUROWCE -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Surowce</h3>
+      <!-- COMMODITIES -->
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Commodities</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Złoto (Gold)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.GOLD}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Srebro (Silver)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.SILVER}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Ropa Brent</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BRENT}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Miedź</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COPPER}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Kawa</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COFFEE}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Aluminium</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ALUMINUM}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Gold</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.GOLD}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Silver</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.SILVER}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Brent Crude</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BRENT}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Copper</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COPPER}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Coffee</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COFFEE}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Aluminum</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ALUMINUM}</td></tr>
       </table>
 
-      <!-- OBLIGACJE -->
-      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Obligacje Skarbowe</h3>
+      <!-- GOVERNMENT BONDS -->
+      <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Government Bonds</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 35px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 10Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US10Y !== "Brak danych" ? data.US10Y + "%" : data.US10Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 20Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US20Y !== "Brak danych" ? data.US20Y + "%" : data.US20Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 30Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US30Y !== "Brak danych" ? data.US30Y + "%" : data.US30Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Niemcy 10Y (DE)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.DE10Y !== "Brak danych" ? data.DE10Y + "%" : data.DE10Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Japonia 10Y (JP)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.JP10Y !== "Brak danych" ? data.JP10Y + "%" : data.JP10Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 10Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US10Y !== "No data" ? data.US10Y + "%" : data.US10Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 20Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US20Y !== "No data" ? data.US20Y + "%" : data.US20Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 30Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US30Y !== "No data" ? data.US30Y + "%" : data.US30Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Germany 10Y (DE)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.DE10Y !== "No data" ? data.DE10Y + "%" : data.DE10Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Japan 10Y (JP)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.JP10Y !== "No data" ? data.JP10Y + "%" : data.JP10Y}</td></tr>
       </table>
 
       <div style="font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px;">
-        Dane synchronizowane z arkuszem: <br>
-        <a href="${SpreadsheetApp.getActiveSpreadsheet().getUrl()}" style="color: #666; text-decoration: none;">Przejdź do Google Sheets</a>
+        Data synchronized with spreadsheet: <br>
+        <a href="${SpreadsheetApp.getActiveSpreadsheet().getUrl()}" style="color: #666; text-decoration: none;">Open in Google Sheets</a>
       </div>
     </div>
   `;

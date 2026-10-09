@@ -1,45 +1,45 @@
 # Market Data Tracker & Reporter
 
-Skrypt Google Apps Script do automatycznego śledzenia i raportowania wybranych aktywów finansowych. Pobiera aktualne kursy rynkowe z bezpłatnych, publicznych interfejsów API, loguje je w arkuszu Google Sheets i wysyła profesjonalny raport w formacie HTML bezpośrednio na Twój e-mail[cite: 1].
+A Google Apps Script automation tool to track and report selected financial assets. It fetches real-time market prices from free, public APIs, logs them into Google Sheets, and delivers a clean HTML report directly to your inbox.
 
-## Główne funkcje
-* **Brak konieczności używania kluczy API:** Wykorzystuje wyłącznie publicznie dostępne, nielimitowane endpointy[cite: 1].
-* **Automatyczna archiwizacja:** Każde uruchomienie dodaje nowy wiersz z datą i pobranymi cenami do aktywnego arkusza kalkulacyjnego[cite: 1].
-* **Estetyczny raport e-mail:** Generuje czytelną, minimalistyczną wiadomość HTML z podziałem na kategorie aktywów[cite: 1].
-* **Odporność na błędy:** Wbudowane bloki `try...catch` zapobiegają przerwaniu działania skryptu w przypadku tymczasowej niedostępności jednego ze źródeł (zwraca wartość "Brak danych")[cite: 1].
+## Key Features
+* **No API Keys Required:** Uses only public, rate-friendly endpoints.
+* **Automated Archiving:** Appends a new timestamped row with market prices to the active spreadsheet on each run.
+* **Polished HTML Email Report:** Generates a clean, minimalist HTML email organized by asset class.
+* **Error Resilience:** Built-in `try...catch` blocks safeguard against runtime failures if an API endpoint is temporarily unreachable (returning "No data").
 
-## Obsługiwane aktywa i źródła danych
-* **Coinbase API:** Polkadot (DOT), Bitcoin (BTC), Ethereum (ETH)[cite: 1]
-* **Yahoo Finance API:** Akcje (SABR), Waluty (USD/PLN, EUR/PLN), Surowce (Złoto, Srebro, Ropa Brent, Miedź, Kawa, Aluminium)[cite: 1]
-* **CoinLore API:** Dominacja BTC, Całkowita kapitalizacja rynku krypto[cite: 1]
-* **CNBC API:** Indeksy giełdowe (S&P 500, NASDAQ 100), Rentowność obligacji skarbowych (US 10Y, US 20Y, US 30Y, Niemcy 10Y, Japonia 10Y)[cite: 1]
+## Tracked Assets & Data Sources
+* **Coinbase API:** Polkadot (DOT), Bitcoin (BTC), Ethereum (ETH)
+* **Yahoo Finance API:** Stocks (SABR), Currencies (USD/PLN, EUR/PLN), Commodities (Gold, Silver, Brent Crude, Copper, Coffee, Aluminum)
+* **CoinLore API:** BTC Dominance, Total Crypto Market Cap
+* **CNBC API:** Equity Indices (S&P 500, NASDAQ 100), Treasury Yields (US 10Y, US 20Y, US 30Y, Germany 10Y, Japan 10Y)
 
-## Instrukcja instalacji
-1. Otwórz swój plik w Google Sheets.
-2. W górnym menu wybierz **Rozszerzenia** ➔ **Apps Script**.
-3. Usuń domyślny kod i wklej w jego miejsce całą zawartość pliku `Market Raport.js`.
-4. Kliknij ikonę dyskietki w górnym menu, aby zapisać projekt.
-5. Kliknij przycisk **Uruchom**. Przy pierwszym uruchomieniu Google poprosi Cię o autoryzację. Wybierz swoje konto Google, kliknij *Zaawansowane*, a następnie *Przejdź do projektu (niebezpieczne)*.
-    
-## Konfiguracja harmonogramu (Automatyzacja)
-Aby skrypt uruchamiał się samoczynnie w wybranym interwale (np. co tydzień):
-1. W edytorze Apps Script przejdź do zakładki **Wyzwalacze** (ikona zegara w menu po lewej stronie).
-2. Kliknij niebieski przycisk **Dodaj wyzwalacz** w prawym dolnym rogu.
-3. Skonfiguruj następująco:
-   * *Wybierz funkcję, która ma zostać uruchomiona:* `checkMarketData`
-   * *Wybierz źródło zdarzenia:* `Sterowane czasem`
-   * *Wybierz typ wyzwalacza na podstawie czasu:* `Wyzwalacz tygodniowy`
-   * *Wybierz dzień tygodnia:* np. `Poniedziałek`
-   * *Wybierz godzinę:* np. `08:00 - 09:00 rano`
-4. Kliknij **Zapisz**.
+## Installation Guide
+1. Open your Google Sheets spreadsheet.
+2. In the top navigation menu, select **Extensions** ➔ **Apps Script**.
+3. Clear any boilerplate code and paste the full contents of `Market Raport.js`.
+4. Click the disk icon to save the project.
+5. Click **Run**. On the initial run, Google will prompt for account authorization. Select your Google account, click *Advanced*, and select *Go to project (unsafe)*.
 
-## Struktura arkusza
-Skrypt automatycznie przypisuje i dopisuje zebrane zmienne do ostatniego pustego wiersza za pomocą funkcji `appendRow()`. Pamiętaj, aby nie zmieniać kolejności kolumn w Twoim bazowym arkuszu po jego wstępnym skonfigurowaniu, ponieważ skrypt przekazuje dane w stałej, zdefiniowanej sekwencji (od daty, przez krypto, indeksy, aż po obligacje)[cite: 1].
+## Scheduled Automation Setup
+To run the script automatically on a recurring schedule (e.g., weekly):
+1. In the Apps Script editor, open the **Triggers** tab (clock icon in the left sidebar).
+2. Click **+ Add Trigger** in the bottom-right corner.
+3. Configure the trigger:
+   * *Choose which function to run:* `checkMarketData`
+   * *Select event source:* `Time-driven`
+   * *Select type of time based trigger:* `Week timer`
+   * *Select day of week:* e.g., `Monday`
+   * *Select time of day:* e.g., `8am to 9am`
+4. Click **Save**.
+
+## Sheet Data Structure
+The script appends gathered data to the next available row using `appendRow()`. Maintain the column ordering in your base worksheet once configured, as data is pushed sequentially (Timestamp, Crypto, Indices, Forex, Commodities, Bonds).
 
 ## Screenshots & Examples
 
-### Raport rynkowy na emailu
-![PowerShell Output](assets/Raport_rynkowy_email.jpg)
+### Market Report Email
+![Market Report Email](assets/Raport_rynkowy_email.jpg)
 
-### Market Data gsheet
-![HTML Report](assets/Market_Data_gsheet.jpg)
+### Market Data Google Sheet
+![Market Data Sheet](assets/Market_Data_gsheet.jpg)

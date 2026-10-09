@@ -1,127 +1,128 @@
 # Migawka Wydarzeń – RSS/Web News & Events Aggregator & LLM Filter
 
-Zautomatyzowany, inteligentny system agregacji, analityki i dystrybucji informacji zrealizowany w środowisku **Google Apps Script**, wspierany przez silnik sztucznej inteligencji **DeepSeek AI API** (`deepseek-chat`).
+An automated, intelligent information aggregation, analytics, and distribution system built in **Google Apps Script**, powered by the **DeepSeek AI API** (`deepseek-chat`).
 
-System cyklicznie monitoruje wskazane serwisy lokalne (Kraków, Myślenice, Tarnów, Małopolska) oraz globalne/krajowe (gospodarka, finanse, geopolityka), usuwa szum informacyjny i clickbait, a wyselekcjonowane wydarzenia porządkuje w arkuszu **Google Sheets** oraz rozsyła w responsywnym formacie HTML na skrzynki e-mail subskrybentów. Rozwiązanie posiada zintegrowaną aplikację internetową (**Google Apps Script Web App**) z formularzem zapisu, wyborem preferencji raportów, obsługą rezygnacji (`unsubscribe`) oraz weryfikacją anty-spamową Cloudflare Turnstile.
-
----
-
-## 🚀 Główne funkcjonalności
-
-1. **Agregacja i inteligentny Web Scraping:**
-   - Wielowątkowe pobieranie zawartości stron za pomocą `UrlFetchApp.fetchAll` z emulacją nowoczesnego User-Agenta.
-   - Zaawansowane oczyszczanie kodu HTML ze znaczników skryptów i styli przy jednoczesnym zachowaniu bezpośrednich odnośników URL (konwersja linków relatywnych do absolutnych).
-2. **Zaawansowana analityka LLM (DeepSeek AI API):**
-   - Bezwzględne ramy kalendarzowe (dzień bieżący, okres minionych 7 dni, mapa 7 dni nadchodzącego tygodnia z dniami tygodnia).
-   - Rygorystyczny profil promptu eliminujący clickbait i plotki – preferowane konkretne, merytoryczne inicjatywy i decyzje rynkowo-gospodarcze.
-   - Wymuszone formatowanie strukturalne JSON (`{"dane": [[...], [...]]}`) oraz mechanizm `bezpiecznyParseJson` odzyskujący odpowiedzi w przypadku ucięcia strumienia.
-3. **Trzy sekcje tematyczne raportu:**
-   - **Sekcja 1: Wydarzenia dla Rodzin z Dziećmi (Kraków i Region):** bieżące wystawy stałe oraz zaplanowane spektakle, warsztaty i pikniki na kolejne 7 dni.
-   - **Sekcja 2: Co się wydarzyło w minionym tygodniu (Polska, Europa, Świat):** kluczowe dane makroekonomiczne, decyzje banków centralnych (RPP, EBC, FED), podatki i geopolityka.
-   - **Sekcja 3: Co jest w planach? (Kolejny tydzień):** publikacje wskaźników makro (CPI, PKB), posiedzenia stóp procentowych, zapowiedzi inwestycji.
-4. **Zarządzanie konfiguracją i danymi (Google Drive & Google Sheets):**
-   - Źródła ładowane dynamicznie z plików konfiguracyjnych JSON (`zrodla_lokalne.json`, `zrodla_globalne.json`) oraz pliku tekstowego `prompt_migawka_wydarzen.txt`.
-   - Nadpisywanie dedykowanych zakładek w arkuszu Google Sheets z formatowaniem nagłówków, stylizacją wierszy oraz automatycznym dopasowaniem szerokości kolumn.
-5. **Dystrybucja e-mail i personalizacja:**
-   - Obsługa preferencji subskrybentów: każdy odbiorca może otrzymywać tylko wydarzenia rodzinne, tylko przegląd rynkowo-światowy lub pełny pakiet.
-   - Dynamiczne pobieranie oficjalnych herbów miast i flag z Dysku Google i wstawianie ich do tabel e-mail.
-   - Dedykowany, bezpieczny link do natychmiastowego wypisania się (`unsubscribe`) na dole każdej wiadomości.
-6. **Aplikacja Webowa (Web App):**
-   - Nowoczesny, estetyczny formularz zapisu w HTML5/CSS3 z interaktywnym podglądem (modalem) przykładowego raportu.
-   - Integracja z Cloudflare Turnstile w celu ochrony przed botami.
-   - Baza subskrybentów prowadzona i aktualizowana w pliku tekstowym `emails.txt` w strukturze Google Drive.
+The system periodically monitors selected regional sources (Kraków, Myślenice, Tarnów, Lesser Poland) and global/national media (economy, finance, geopolitics), filters out informational noise and clickbait, organizes curated events in **Google Sheets**, and distributes responsive HTML newsletters to subscribers. The solution includes an integrated **Google Apps Script Web App** with a subscription form, report preference selection, unsubscribe handler, and Cloudflare Turnstile anti-bot verification.
 
 ---
 
-## 🛠️ Architektura plików na Dysku Google
+## 🚀 Key Features
 
-Skrypt wymaga utworzenia dedykowanego drzewa katalogów na Dysku Google:
+1. **Aggregation & Smart Web Scraping:**
+   - Multi-threaded page fetching via `UrlFetchApp.fetchAll` with modern User-Agent emulation.
+   - Robust HTML sanitization removing script and style tags while preserving absolute URLs.
+2. **Advanced LLM Analytics (DeepSeek AI API):**
+   - Precise calendar boundaries (current day, past 7 days, 7-day upcoming week schedule with days of the week).
+   - Strict prompt profile eliminating clickbait and gossip — prioritizing substantive initiatives and macroeconomic decisions.
+   - Enforced structural JSON output (`{"dane": [[...], [...]]}`) and `bezpiecznyParseJson` recovery logic in case of stream cutoffs.
+3. **Three Thematic Report Sections:**
+   - **Section 1: Family & Children Events (Kraków & Region):** ongoing exhibitions, upcoming performances, workshops, and weekend festivals for the next 7 days.
+   - **Section 2: Past Week Summary (Poland, Europe, Global):** key macroeconomic indicators, central bank decisions (NBP, ECB, FED), fiscal policy, and geopolitics.
+   - **Section 3: What's Ahead? (Upcoming Week):** calendar releases (CPI, GDP), interest rate decisions, and major economic announcements.
+4. **Configuration & Data Management (Google Drive & Google Sheets):**
+   - Sources loaded dynamically from JSON configuration files (`zrodla_lokalne.json`, `zrodla_globalne.json`) and `prompt_migawka_wydarzen.txt`.
+   - Dedicated worksheet tabs updated in Google Sheets with styled headers, alternating rows, and auto-adjusted column widths.
+5. **Email Distribution & Personalization:**
+   - Subscriber preferences: recipients can choose family events only, world/market overview only, or the complete digest.
+   - Dynamic inclusion of city crests and regional emblems from Google Drive into email layouts.
+   - Secure one-click unsubscribe links in every newsletter footer.
+6. **Web App Interface:**
+   - Responsive subscription landing page in HTML5/CSS3 with interactive sample report modal preview.
+   - Cloudflare Turnstile integration for bot protection.
+   - Subscriber database maintained and updated in `emails.txt` on Google Drive.
+
+---
+
+## 🛠️ Google Drive Architecture
+
+The script expects the following folder structure on Google Drive:
 
 ```text
-Dysk Google/
+Google Drive/
 └── Automation/
     └── Migawka Wydarzeń/
-        ├── emails.txt                  # Baza subskrybentów (format: email;rodziny,swiat)
-        ├── prompt_migawka_wydarzen.txt # Filtr profilu i wytyczne promptu dla DeepSeek
-        ├── zrodla_lokalne.json         # Lista serwisów lokalnych (URL, metadane)
-        ├── zrodla_globalne.json        # Lista serwisów rynkowych i makroekonomicznych
+        ├── emails.txt                  # Subscriber database (format: email;rodziny,swiat)
+        ├── prompt_migawka_wydarzen.txt # DeepSeek prompt guidelines and profile filter
+        ├── zrodla_lokalne.json         # Regional sources list (URLs, metadata)
+        ├── zrodla_globalne.json        # Macroeconomic and global news sources list
         └── Brand/
-            ├── Logo MW v2.jpg          # Logotyp projektu
+            ├── Logo MW v2.jpg          # Project logo
             └── ikony_herby_i_symbole/
-                └── JPG/                # Herby miast i symbole (01_herb_krakowa.jpg, itp.)
+                └── JPG/                # City crests and emblems (01_herb_krakowa.jpg, etc.)
 ```
 
 ---
 
-## ⚙️ Wdrożenie i konfiguracja
+## ⚙️ Deployment & Configuration
 
-### 1. Wymagania wstępne
-- Konto Google z dostępem do Google Sheets, Google Drive oraz Google Apps Script.
-- Aktywny klucz API **DeepSeek** ze środków platformy ([platform.deepseek.com](https://platform.deepseek.com/)).
-- (Opcjonalnie) Klucze witryny **Cloudflare Turnstile** do formularza anty-spamowego.
+### 1. Prerequisites
+- Google Account with access to Google Sheets, Google Drive, and Google Apps Script.
+- Active **DeepSeek API Key** ([platform.deepseek.com](https://platform.deepseek.com/)).
+- (Optional) **Cloudflare Turnstile** site and secret keys for form bot protection.
 
-### 2. Konfiguracja właściwości projektu (Script Properties)
-W edytorze Apps Script przejdź do: **Ustawienia projektu** (ikona koła zębatego) > **Właściwości skryptu** i zdefiniuj klucze:
+### 2. Configure Script Properties
+In Apps Script editor, open **Project Settings** (gear icon) > **Script Properties** and add:
 
-| Właściwość | Wartość |
+| Property | Value |
 | :--- | :--- |
-| `DEEPSEEK_API_KEY` | Twój klucz API DeepSeek (`sk-...`) |
-| `CAPTCHA_SITE_KEY` | *(Opcjonalnie)* Publiczny klucz strony Cloudflare Turnstile |
-| `CAPTCHA_SECRET_KEY` | *(Opcjonalnie)* Prywatny klucz weryfikacyjny Cloudflare Turnstile |
+| `DEEPSEEK_API_KEY` | Your DeepSeek API key (`sk-...`) |
+| `CAPTCHA_SITE_KEY` | *(Optional)* Cloudflare Turnstile public site key |
+| `CAPTCHA_SECRET_KEY` | *(Optional)* Cloudflare Turnstile secret key |
 
-### 3. Wdrożenie jako aplikacja internetowa (Web App)
-1. W prawym górnym rogu edytora Apps Script kliknij **Wdróż** > **Nowe wdrożenie**.
-2. Jako typ wybierz **Aplikacja internetowa**.
-3. **Wykonaj jako:** *Ja (twój adres e-mail)*.
-4. **Kto ma dostęp:** *Każdy* (Anyone).
-5. Skopiowany adres URL wdrożenia obsługuje żądania GET (formularz zapisu i linki rezygnacji) oraz POST (zapis nowego adresu).
+### 3. Deploy as Web App
+1. In the upper-right corner of Apps Script, click **Deploy** > **New deployment**.
+2. Select type: **Web app**.
+3. **Execute as:** *Me (your email address)*.
+4. **Who has access:** *Anyone*.
+5. The deployment URL handles GET requests (subscription page, unsubscribe links) and POST requests (new email signups).
 
-### 4. Harmonogram automatyczny (Wyzwalacze)
-W menu **Wyzwalacze** (ikona zegara) dodaj trigger czasowy dla funkcji `generujRaportWiadomosci`:
-- Źródło: **Sterowane czasem**
-- Typ: **Licznik tygodniowy** (np. w każdy poniedziałek między 7:00 a 8:00 rano).
+### 4. Automated Scheduling (Triggers)
+In the **Triggers** menu (clock icon), add a time-driven trigger for `generujRaportWiadomosci`:
+- Event source: **Time-driven**
+- Trigger type: **Week timer** (e.g., every Monday between 7:00 AM and 8:00 AM).
 
 ---
 
 ## 🖼️ Screenshots
 
-### Publikacja na Google Sites
-![Publikacja na Google Sites](assets/Publikacja_na_google_sites.jpg)
+### Google Sites Publication
+![Google Sites Publication](assets/Publikacja_na_google_sites.jpg)
 
-### Przegląd projektu – Migawka Wydarzeń
+### Project Overview – Migawka Wydarzeń
 ![Migawka Wydarzeń](assets/Migawka_Wydarzen.jpg)
 
-### Witryna internetowa projektu (Google Sites)
+### Google Sites Website
 ![Google Sites Website](assets/Google_sites_website.jpg)
 
-### Formularz zapisu na newsletter
-![Zapis na newsletter](assets/Zapis_na_newsletter.jpg)
+### Newsletter Subscription Form
+![Newsletter Signup](assets/Zapis_na_newsletter.jpg)
 
-### Zarządzanie wdrożeniami (Managing Deployments)
+### Managing Deployments
 ![Managing Deployments](assets/Managing%20deployments.jpg)
 
-### Potwierdzenie wypisania z subskrypcji
-![Wypisanie z subskrypcji](assets/Wypisanie%20z%20subskrypcji2.jpg)
+### Unsubscribe Confirmation
+![Unsubscribe Confirmation](assets/Wypisanie%20z%20subskrypcji2.jpg)
 
-### Zestawienie w arkuszu Google Sheets
-![Migawka Wydarzeń Gsheet](assets/Migawka_Wydarzen_Gsheet.jpg)
+### Google Sheets Overview
+![Migawka Wydarzeń Sheet](assets/Migawka_Wydarzen_Gsheet.jpg)
 
-### Konfiguracja Script Properties w Google Apps Script
+### Script Properties in Google Apps Script
 ![Apps Script Properties](assets/Apps_Script_Properties.jpg)
 
-### Gotowy raport e-mail w skrzynce Gmail
-![Raport Tygodniowy Gmail](assets/Migawka-Wydarzeń-2026-09-30-Raport-Tygodniowy-roman-pindela-gmail-com-Gmail-09-30-2026_11_53_AM.jpg)
+### Finished Email Report in Gmail
+![Weekly Report Gmail](assets/Migawka-Wydarzeń-2026-09-30-Raport-Tygodniowy-roman-pindela-gmail-com-Gmail-09-30-2026_11_53_AM.jpg)
 
 ---
 
-## 👤 O autorze
+## 👤 Author Information
 
-- **Autor:** Roman Pindela
-- **Kontakt e-mail:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
+- **Author:** Roman Pindela
+- **Email:** [roman.pindela@gmail.com](mailto:roman.pindela@gmail.com)
 - **GitHub:** [roman-pindela](https://github.com/roman-pindela)
 - **Version:** 2.2.2
+
 ---
 
-## 📄 Licencja
+## 📄 License
 
-Projekt udostępniany na licencji **MIT**. Kod może być swobodnie wykorzystywany, modyfikowany i wdrażany do celów prywatnych oraz komercyjnych.
+This project is licensed under the **MIT License**. Code may be freely adapted, modified, and deployed for commercial and private use.
