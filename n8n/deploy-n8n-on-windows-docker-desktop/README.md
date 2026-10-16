@@ -53,13 +53,14 @@ Self-hosting **n8n** on Windows workstations or servers typically requires insta
 deploy-n8n-on-windows-docker-desktop/
 ├── assets/
 │   ├── .gitkeep
-│   ├── Standard_run.jpg            # Screenshot: Interactive help & zero-parameter run
-│   ├── deploying_docker.jpg        # Screenshot: Docker Engine startup & directory preparation
-│   ├── deploying_docker2.jpg       # Screenshot: Real-time n8nio/n8n image layer download progress
-│   ├── deployment_summary.jpg      # Screenshot: Container deployment & quick-start summary
-│   └── deployment_summary2.jpg     # Screenshot: End-to-end WSL2 update + Docker + n8n summary
-├── deploy-n8n-on-windows-docker-desktop.ps1                  # Main PowerShell deployment & lifecycle script
-└── README.md                       # Technical documentation & usage guide
+│   ├── Standard_run.jpg                      # Screenshot: Interactive help & zero-parameter run
+│   ├── deploying_docker.jpg                  # Screenshot: Docker Engine startup & directory preparation
+│   ├── deploying_docker2.jpg                 # Screenshot: Real-time n8nio/n8n image layer download progress
+│   ├── deployment_summary.jpg                # Screenshot: Container deployment & quick-start summary
+│   ├── deployment_summary2.jpg               # Screenshot: End-to-end WSL2 update + Docker + n8n summary
+│   └── launching_n8n_on_localmachine.jpg     # Screenshot: Running n8n Web UI & AI Assistant at http://localhost:5678
+├── deploy-n8n-on-windows-docker-desktop.ps1  # Main PowerShell deployment & lifecycle script
+└── README.md                                 # Technical documentation & usage guide
 ```
 
 Target SSD installation layout created by the script:
@@ -221,6 +222,11 @@ Once `n8nio/n8n:latest` is pulled and started with the `n8n_data` persistent vol
 Complete execution view showing WSL2 feature checks (`Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`), `wsl.exe --update`, `wsl.exe --set-default-version 2`, container startup, HTTP health check at `http://localhost:5678`, and the quick-start reference:
 
 ![Full End-to-End WSL2 Docker and n8n Deployment Summary](assets/deployment_summary2.jpg)
+
+### 6. Launching Self-Hosted n8n Web UI on Localhost (`launching_n8n_on_localmachine.jpg`)
+Accessing the deployed n8n instance in the browser at `http://localhost:5678` (`http://localhost:5678/assistant`), ready for workflow automation and AI model configuration:
+
+![Launching Self-Hosted n8n Web UI on Localhost](assets/launching_n8n_on_localmachine.jpg)
 
 ---
 
