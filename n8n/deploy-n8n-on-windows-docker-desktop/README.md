@@ -52,7 +52,12 @@ Self-hosting **n8n** on Windows workstations or servers typically requires insta
 ```text
 deploy-n8n-on-windows-docker-desktop/
 ├── assets/
-│   └── .gitkeep                    # Directory for execution screenshots
+│   ├── .gitkeep
+│   ├── Standard_run.jpg            # Screenshot: Interactive help & zero-parameter run
+│   ├── deploying_docker.jpg        # Screenshot: Docker Engine startup & directory preparation
+│   ├── deploying_docker2.jpg       # Screenshot: Real-time n8nio/n8n image layer download progress
+│   ├── deployment_summary.jpg      # Screenshot: Container deployment & quick-start summary
+│   └── deployment_summary2.jpg     # Screenshot: End-to-end WSL2 update + Docker + n8n summary
 ├── deploy-n8n-on-windows-docker-desktop.ps1                  # Main PowerShell deployment & lifecycle script
 └── README.md                       # Technical documentation & usage guide
 ```
@@ -187,6 +192,35 @@ Pulls the newest `n8nio/n8n` image, stops and removes the old container, and sta
 ```powershell
 .\deploy-n8n-on-windows-docker-desktop.ps1 -Status
 ```
+
+---
+
+## 📸 Screenshots & Visual Verification
+
+### 1. Interactive Zero-Parameter Help & Usage Guide (`Standard_run.jpg`)
+Running `.\deploy-n8n-on-windows-docker-desktop.ps1` without parameters (or with `-h`) displays the full help screen, version, author info, parameter list, and practical examples:
+
+![Interactive Help and Usage Guide](assets/Standard_run.jpg)
+
+### 2. Detailed Startup Parameters & Docker Engine Readiness (`deploying_docker.jpg`)
+Launching the deployment (`-d` / `-Deploy`) displays the detailed execution parameter table, creates the target SSD directory structure (`c:\DANE\rpindela\SSD\Docker`), and tracks Docker Engine daemon initialization with a real-time `Write-Progress` bar:
+
+![Docker Engine Startup and Directory Setup](assets/deploying_docker.jpg)
+
+### 3. Real-Time Image Pull & Layer Progress Bar (`deploying_docker2.jpg`)
+While pulling `n8nio/n8n:latest`, the script parses layer-by-layer download and extraction events and renders a live `Write-Progress` bar (`Layers completed: [8/14] (57%)`):
+
+![Pulling n8n Docker Image with Layer Progress Bar](assets/deploying_docker2.jpg)
+
+### 4. Container Provisioning & Tool Locations Summary (`deployment_summary.jpg`)
+Once `n8nio/n8n:latest` is pulled and started with the `n8n_data` persistent volume, the script outputs the complete tool locations and quick-start summary:
+
+![Container Provisioning and Tool Locations Summary](assets/deployment_summary.jpg)
+
+### 5. Full End-to-End WSL2 + Docker + n8n Deployment Output (`deployment_summary2.jpg`)
+Complete execution view showing WSL2 feature checks (`Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`), `wsl.exe --update`, `wsl.exe --set-default-version 2`, container startup, HTTP health check at `http://localhost:5678`, and the quick-start reference:
+
+![Full End-to-End WSL2 Docker and n8n Deployment Summary](assets/deployment_summary2.jpg)
 
 ---
 

@@ -744,8 +744,9 @@ function Initialize-WslEnvironment {
         Write-Progress -Id 9 -ParentId 1 -Activity "Provisioning WSL2 Environment" `
             -Status "[2/3] Running 'wsl.exe --update' (Elapsed: ${elapsed}s)..." -PercentComplete $pct
     }
+    $wslProc.WaitForExit()
 
-    if ($wslProc.ExitCode -eq 0) {
+    if ($wslProc.ExitCode -eq 0 -or $null -eq $wslProc.ExitCode) {
         Write-Log -Level "SUCCESS" -Message "Successfully updated WSL2 environment ('wsl.exe --update' exit code: 0)."
     }
     else {
