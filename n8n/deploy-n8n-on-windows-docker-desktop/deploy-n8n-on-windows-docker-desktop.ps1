@@ -3,17 +3,20 @@
   Script Name : deploy-n8n-on-windows-docker-desktop.ps1
   Author      : Roman Pindela
   Contact     : roman.pindela@gmail.com
-  Version     : 1.2.0
-  Release Date: 2026-10-16
+  Version     : 1.3.0
+  Release Date: 2026-10-17
   License     : MIT
   Repository  : https://github.com/romanpindela
 
   DESCRIPTION:
-    Enterprise-grade PowerShell automation script that downloads and installs
-    Docker Desktop via WinGet into a custom directory (default:
-    c:\DANE\rpindela\SSD\Docker\) and deploys a self-hosted n8n workflow
-    automation instance in Docker following official n8n documentation:
-    https://docs.n8n.io/deploy/host-n8n/install-options/install-with-docker
+    Enterprise-grade PowerShell automation script that provisions the WSL2
+    environment (wsl.exe --update), downloads and installs Docker Desktop via
+    WinGet into a custom SSD directory (default: c:\DANE\rpindela\SSD\Docker\),
+    and deploys a self-hosted n8n workflow automation platform in Docker with
+    the full official n8n Sandbox Stack (Docker Compose v2) following:
+    - https://get.n8n.io
+    - https://docs.n8n.io/deploy/host-n8n/install-options/install-using-docker-compose
+    - https://docs.n8n.io/deploy/host-n8n/install-options/install-with-docker
 
     Key Capabilities:
     1. Zero-Parameter Interactive Help (-Help / -h):
@@ -33,49 +36,65 @@
        WSL2 Linux kernel required by Docker Desktop and n8n, and enforces WSL 2
        as the default version ('wsl.exe --set-default-version 2').
     5. Custom-Path Docker Desktop Provisioning via WinGet:
-       Downloads the Docker Desktop installer using WinGet (with fallback to
-       official Docker CDN) showing real-time transfer progress, and installs
-       Docker Desktop binaries, WSL2 data root, and Windows container storage
-       into c:\DANE\rpindela\SSD\Docker\.
-    6. Official n8n Docker Deployment & File Transfer Progress:
-       Creates the persistent Docker volume (n8n_data), pulls the n8nio/n8n
-       image with real-time layer download progress bars, deploys the n8n
-       container (supporting both SQLite default and PostgreSQL backends),
-       optionally transfers/imports local workflow JSON files with detailed
-       per-file progress bars, and verifies HTTP health (http://localhost:5678).
-    7. Post-Install Tool Locations & Quick-Start Summary:
+       Downloads the Docker Desktop installer using WinGet showing real-time
+       transfer progress, and installs Docker Desktop binaries, WSL2 data root,
+       and Windows container storage into c:\DANE\rpindela\SSD\Docker\.
+    6. Official n8n + AI Assistant Sandbox Deployment (Docker Compose v2):
+       Generates the complete n8n Sandbox stack in c:\DANE\rpindela\SSD\Docker\n8n-stack\
+       (compose.yml, .env with cryptographically random mTLS/API secrets, and
+       searxng-settings.yml) and deploys all 6 official services:
+       - sandbox-certs    : Generates mutual TLS (mTLS) certificates into sandbox_tls volume
+       - sandbox-api      : Control-plane API for n8n AI Assistant code execution
+       - sandbox-runner-1 : Privileged Docker-in-Docker (DinD) isolated sandbox runner
+       - n8n              : Main n8n editor on port 5678 with persistent volume n8n_data
+       - runners          : External Task Runners container for JS/Python Code nodes
+       - searxng          : Bundled private web search engine for n8n Assistant
+       Also supports legacy single-container mode via -SkipSandbox.
+    7. Real-Time Multi-Stage Progress Bars (Write-Progress):
+       Displays detailed layer-by-layer download progress for every stack image,
+       container startup progress, sandbox-api & n8n health checks, and per-file
+       transfer progress when importing local workflow JSON files (-ImportWorkflowsPath).
+    8. Post-Install Tool Locations & Quick-Start Summary:
        Displays a concise cheat sheet after installation showing exact paths
        to all installed tools (WSL2, Docker Desktop GUI, Docker CLI, Docker Compose,
-       WSL2 storage, n8n volume, logs) and essential management commands.
-    8. Detailed Audit Logging:
+       Sandbox Stack files, WSL2 storage, n8n volume, logs) and essential commands.
+    9. Detailed Audit Logging:
        Writes UTF-8 timestamped execution logs by default to:
        C:\Logs\<yyyyMMdd_HHmmss>-deploy-n8n-on-windows-docker-desktop-<ComputerName>-<UserName>.logs
 ================================================================================
 .SYNOPSIS
-    Provisions WSL2 (wsl.exe --update), downloads and installs Docker Desktop via
-    WinGet to a custom SSD directory, and deploys self-hosted n8n in Docker.
+    Provisions WSL2 (wsl.exe --update), installs Docker Desktop via WinGet to a
+    custom SSD directory, and deploys self-hosted n8n with the official Docker
+    Sandbox Stack (sandbox-certs, sandbox-api, sandbox-runner-1, runners, searxng).
 
 .DESCRIPTION
-    Automates the end-to-end provisioning of WSL2, Docker Desktop, and n8n on
-    Windows 10/11 and Windows Server. Updates the WSL2 environment via 'wsl.exe --update',
-    configures Docker Desktop to store binaries and WSL2 data in c:\DANE\rpindela\SSD\Docker\,
-    creates the persistent n8n_data Docker volume, pulls and starts the n8nio/n8n container
-    with timezone and security settings, optionally imports local workflow files with
-    detailed transfer progress bars, and outputs a complete summary of tool locations
-    and usage commands.
+    Automates the end-to-end provisioning of WSL2, Docker Desktop, and self-hosted
+    n8n with the AI Assistant Sandbox on Windows 10/11 and Windows Server.
+    Updates the WSL2 environment via 'wsl.exe --update', configures Docker Desktop
+    to store binaries and WSL2 data in c:\DANE\rpindela\SSD\Docker\, generates the
+    official Docker Compose Sandbox stack (compose.yml, .env, searxng-settings.yml),
+    pulls all required images with real-time layer progress bars, starts the stack,
+    verifies both sandbox-api and n8n HTTP health endpoints, optionally imports
+    local workflow files with detailed transfer progress bars, and outputs a
+    complete summary of tool locations and usage commands.
 
 .PARAMETER Deploy
     Triggers the full deployment pipeline (WSL2 update + Docker Desktop check/install +
-    n8n container deployment) using default or specified parameters.
+    n8n Docker Compose Sandbox stack deployment) using default or specified parameters.
     Aliases: -Install, -Run, -Start, -d
 
 .PARAMETER DockerInstallDir
-    Target installation directory for Docker Desktop binaries and data roots.
+    Target installation directory for Docker Desktop binaries, WSL2 data roots, and n8n stack.
     Default: 'c:\DANE\rpindela\SSD\Docker\'
     Aliases: -InstallDir, -DockerPath, -Path
 
+.PARAMETER StackDir
+    Directory where Docker Compose Sandbox configuration files (compose.yml, .env,
+    searxng-settings.yml) are generated.
+    Default: '<DockerInstallDir>\n8n-stack' (e.g. 'c:\DANE\rpindela\SSD\Docker\n8n-stack')
+
 .PARAMETER ContainerName
-    Name of the Docker container for the n8n instance.
+    Name of the main Docker container for the n8n instance.
     Default: 'n8n'
     Aliases: -Name, -Container
 
@@ -85,7 +104,7 @@
     Aliases: -Volume, -VolumeName
 
 .PARAMETER Port
-    Host TCP port mapped to container port 5678.
+    Host TCP port mapped to n8n container port 5678.
     Default: 5678
     Aliases: -p, -HostPort
 
@@ -95,25 +114,37 @@
     Aliases: -tz
 
 .PARAMETER ImageTag
-    Docker image tag for n8nio/n8n (e.g., 'latest', 'stable', 'next', '1.81.0', '2.43.7').
+    Docker image tag/version for n8nio/n8n and ghcr.io/n8n-io/runners
+    (e.g., 'latest', 'stable', '2.43.7'). When 'latest' or 'stable' is used in
+    Sandbox mode, the script resolves the latest stable release version from GitHub
+    so n8n and runners tags match cleanly.
     Default: 'latest'
     Aliases: -Tag, -Version
 
+.PARAMETER SandboxVersion
+    Version tag for the ghcr.io/n8n-io/n8n-sandbox-service-* images.
+    Default: '1.8.1'
+
+.PARAMETER SkipSandbox
+    Deploys n8n as a standalone single container (docker run n8nio/n8n) without
+    the Docker Compose Sandbox stack (sandbox-certs, sandbox-api, sandbox-runner-1,
+    runners, searxng). By default, Sandbox mode is ENABLED.
+
 .PARAMETER Interactive
-    Runs the n8n container in foreground interactive mode (-it --rm) exactly as shown
-    in the basic n8n documentation snippet instead of detached background service mode (-d).
+    Runs the n8n container in foreground interactive mode (-it --rm) when used with
+    -SkipSandbox, instead of detached background service mode (-d).
 
 .PARAMETER SkipWslUpdate
     Skips running 'wsl.exe --update' and WSL2 default version configuration during deployment.
 
 .PARAMETER SkipDockerInstall
     Skips the WinGet Docker Desktop installation check and proceeds directly to n8n
-    container deployment (useful when Docker Engine is already installed and running).
+    deployment (useful when Docker Engine is already installed and running).
 
 .PARAMETER Update
-    Updates an existing n8n Docker deployment by pulling the target n8nio/n8n image,
-    stopping and removing the existing container, and starting a new container
-    attached to the existing persistent volume.
+    Updates an existing n8n deployment by resolving and pulling the latest n8n and
+    sandbox images and recreating the Docker Compose Sandbox stack (or standalone
+    container) while preserving all data in the persistent volume and .env secrets.
     Aliases: -u, -Upgrade
 
 .PARAMETER ImportWorkflowsPath
@@ -144,8 +175,8 @@
     PostgreSQL schema name. Default: 'public'.
 
 .PARAMETER Status
-    Displays current installation status of WSL2, Docker Desktop, Docker Engine, and the n8n
-    container, along with the summary of tool locations and usage commands.
+    Displays current installation status of WSL2, Docker Desktop, Docker Engine, and the
+    n8n Sandbox stack containers, along with the summary of tool locations and usage commands.
     Aliases: -s, -Info
 
 .PARAMETER OpenBrowser
@@ -167,28 +198,27 @@
 
 .EXAMPLE
     .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy
-    Updates WSL2 (wsl.exe --update), downloads and installs Docker Desktop via WinGet
-    to c:\DANE\rpindela\SSD\Docker\, creates the n8n_data volume, pulls n8nio/n8n,
-    starts n8n on port 5678, and shows the post-installation tool summary.
+    Updates WSL2 (wsl.exe --update), installs Docker Desktop via WinGet to
+    c:\DANE\rpindela\SSD\Docker\, provisions the n8n Docker Compose Sandbox stack
+    (n8n + sandbox-certs + sandbox-api + sandbox-runner-1 + runners + searxng)
+    on port 5678, verifies sandbox & n8n health, and prints the quick-start summary.
 
 .EXAMPLE
     .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy -DockerInstallDir "c:\DANE\rpindela\SSD\Docker\" -Port 5678 -Timezone "Europe/Warsaw" -OpenBrowser
-    Updates WSL2, installs Docker Desktop to the custom SSD directory, deploys n8n with
-    Warsaw timezone, and launches http://localhost:5678 in the default browser.
+    Deploys the full n8n + Sandbox stack with Warsaw timezone and opens http://localhost:5678.
 
 .EXAMPLE
     .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy -ImportWorkflowsPath "C:\Workflows"
-    Deploys n8n and uploads all workflow .json files from C:\Workflows into the container
-    with a detailed per-file transfer progress bar.
+    Deploys n8n with Sandbox and uploads all workflow .json files from C:\Workflows into
+    the n8n container with a detailed per-file transfer progress bar.
 
 .EXAMPLE
-    .\deploy-n8n-on-windows-docker-desktop.ps1 -Update -ImageTag "latest"
-    Pulls the latest n8nio/n8n image and recreates the n8n container while preserving
-    all data in the n8n_data volume.
+    .\deploy-n8n-on-windows-docker-desktop.ps1 -Update
+    Upgrades n8n and the Sandbox services to the latest release while preserving n8n_data and .env secrets.
 
 .EXAMPLE
     .\deploy-n8n-on-windows-docker-desktop.ps1 -Status
-    Checks WSL2, Docker & n8n status and prints the tool locations and quick-start cheat sheet.
+    Checks WSL2, Docker & n8n Sandbox stack status and prints tool locations and commands.
 #>
 
 [CmdletBinding(DefaultParameterSetName = "Default")]
@@ -198,8 +228,15 @@ param (
     [switch]$Deploy,
 
     [Parameter(Mandatory = $false, Position = 0, ParameterSetName = "DeploySet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "StatusSet")]
     [Alias("InstallDir", "DockerPath", "Path")]
     [string]$DockerInstallDir = "c:\DANE\rpindela\SSD\Docker\",
+
+    [Parameter(Mandatory = $false, ParameterSetName = "DeploySet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "StatusSet")]
+    [string]$StackDir,
 
     [Parameter(Mandatory = $false, ParameterSetName = "DeploySet")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
@@ -228,6 +265,14 @@ param (
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
     [Alias("Tag", "Version")]
     [string]$ImageTag = "latest",
+
+    [Parameter(Mandatory = $false, ParameterSetName = "DeploySet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
+    [string]$SandboxVersion = "1.8.1",
+
+    [Parameter(Mandatory = $false, ParameterSetName = "DeploySet")]
+    [Parameter(Mandatory = $false, ParameterSetName = "UpdateSet")]
+    [switch]$SkipSandbox,
 
     [Parameter(Mandatory = $false, ParameterSetName = "DeploySet")]
     [switch]$Interactive,
@@ -301,14 +346,17 @@ $ErrorActionPreference = "Stop"
 # SCRIPT METADATA & CONFIGURATION CONSTANTS
 # ==============================================================================
 $SCRIPT_INFO = @{
-    Name        = "deploy-n8n-on-windows-docker-desktop"
-    FileName    = "deploy-n8n-on-windows-docker-desktop.ps1"
-    Version     = "1.2.0"
-    Author      = "Roman Pindela"
-    Contact     = "roman.pindela@gmail.com"
-    GitHub      = "https://github.com/romanpindela"
-    ReleaseDate = "2026-10-16"
-    DocsUrl     = "https://docs.n8n.io/deploy/host-n8n/install-options/install-with-docker"
+    Name              = "deploy-n8n-on-windows-docker-desktop"
+    FileName          = "deploy-n8n-on-windows-docker-desktop.ps1"
+    Version           = "1.3.0"
+    Author            = "Roman Pindela"
+    Contact           = "roman.pindela@gmail.com"
+    GitHub            = "https://github.com/romanpindela"
+    ReleaseDate       = "2026-10-17"
+    DocsUrl           = "https://docs.n8n.io/deploy/host-n8n/install-options/install-using-docker-compose"
+    LegacyDocsUrl     = "https://docs.n8n.io/deploy/host-n8n/install-options/install-with-docker"
+    GetN8nUrl         = "https://get.n8n.io"
+    FallbackN8nVer    = "2.43.7"
 }
 
 $script:ActiveLogFile = $null
@@ -436,12 +484,22 @@ DESCRIPTION:
   Automated deployment tool that installs/updates the WSL2 environment
   (wsl.exe --update), downloads and installs Docker Desktop via WinGet into a
   custom directory (default: c:\DANE\rpindela\SSD\Docker\), and deploys a
-  self-hosted n8n workflow automation platform in Docker based on official docs:
-  $($SCRIPT_INFO.DocsUrl)
+  self-hosted n8n workflow automation platform in Docker with the complete
+  official n8n Sandbox Stack (Docker Compose v2):
+    - n8n              : Main workflow editor (http://localhost:5678)
+    - sandbox-certs    : Mutual TLS (mTLS) certificate bootstrapper
+    - sandbox-api      : Control-plane API for n8n AI Assistant sandbox
+    - sandbox-runner-1 : Privileged Docker-in-Docker isolated sandbox runner
+    - runners          : External Task Runners for JS/Python Code nodes
+    - searxng          : Bundled web search engine for n8n AI Assistant
 
-  During startup, WSL2 update, download, installation, and file transfers, the
-  script outputs detailed configuration parameters and real-time multi-stage
-  progress bars (Write-Progress) and logs every operation to C:\Logs.
+  References:
+    * $($SCRIPT_INFO.DocsUrl)
+    * $($SCRIPT_INFO.GetN8nUrl)
+
+  During startup, WSL2 update, download, installation, image pulls, and file
+  transfers, the script outputs detailed configuration parameters and real-time
+  multi-stage progress bars (Write-Progress) and logs every operation to C:\Logs.
 
 UNBLOCKING THE SCRIPT (REQUIRED AFTER DOWNLOADING FROM GITHUB):
   Unblock-File -Path .\deploy-n8n-on-windows-docker-desktop.ps1
@@ -451,41 +509,48 @@ SYNTAX:
   # 1. Display this help screen (default when run with no parameters):
   .\deploy-n8n-on-windows-docker-desktop.ps1 [-Help | -h]
 
-  # 2. Full automated deployment (WSL2 update + Docker Desktop via WinGet + n8n):
-  .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy [-DockerInstallDir <Path>] [-Port <Int>] [-Timezone <String>]
-                   [-ImageTag <Tag>] [-DataVolumeName <Name>] [-ContainerName <Name>]
-                   [-ImportWorkflowsPath <Path>] [-SkipWslUpdate] [-OpenBrowser] [-LogPath <Path>]
+  # 2. Full automated deployment (WSL2 + Docker Desktop + n8n with Sandbox Stack):
+  .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy [-DockerInstallDir <Path>] [-StackDir <Path>]
+                   [-Port <Int>] [-Timezone <String>] [-ImageTag <Tag>] [-SandboxVersion <Ver>]
+                   [-DataVolumeName <Name>] [-ContainerName <Name>] [-ImportWorkflowsPath <Path>]
+                   [-SkipWslUpdate] [-SkipSandbox] [-OpenBrowser] [-LogPath <Path>]
 
-  # 3. Deploy n8n with external PostgreSQL database:
+  # 3. Deploy n8n + Sandbox Stack with external PostgreSQL database:
   .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy -UsePostgres -PostgresHost <Host> -PostgresDatabase <DB>
                    -PostgresUser <User> -PostgresPassword <Pass> [-PostgresPort 5432]
 
-  # 4. Update existing n8n container to latest (or specific) image version:
-  .\deploy-n8n-on-windows-docker-desktop.ps1 -Update [-ImageTag <Tag>] [-ContainerName <Name>]
+  # 4. Update existing n8n + Sandbox Stack to latest (or specific) release:
+  .\deploy-n8n-on-windows-docker-desktop.ps1 -Update [-ImageTag <Tag>] [-SandboxVersion <Ver>]
 
-  # 5. Check WSL2, Docker & n8n status and display tool locations & cheat sheet:
+  # 5. Check WSL2, Docker & n8n Sandbox Stack status and display tool locations:
   .\deploy-n8n-on-windows-docker-desktop.ps1 -Status
 
 PARAMETERS:
   -Deploy, -Install, -d   : Executes the full installation & deployment workflow
-                            (wsl.exe --update + Docker Desktop + n8n container).
+                            (wsl.exe --update + Docker Desktop + n8n Sandbox Stack).
   -DockerInstallDir, -Path: Custom directory for Docker Desktop & WSL2 storage.
                             Default: c:\DANE\rpindela\SSD\Docker\
-  -ContainerName, -Name   : Docker container name for n8n. Default: n8n
+  -StackDir               : Directory for Docker Compose Sandbox files (compose.yml,
+                            .env, searxng-settings.yml).
+                            Default: c:\DANE\rpindela\SSD\Docker\n8n-stack
+  -ContainerName, -Name   : Docker container name for main n8n instance. Default: n8n
   -DataVolumeName, -Volume: Persistent Docker volume name. Default: n8n_data
-  -Port, -p               : Host port mapped to container port 5678. Default: 5678
+  -Port, -p               : Host port mapped to n8n port 5678. Default: 5678
   -Timezone, -tz          : Timezone for GENERIC_TIMEZONE and TZ. Default: Europe/Warsaw
-  -ImageTag, -Tag         : n8nio/n8n image tag (latest, stable, next, 2.43.7).
-                            Default: latest
-  -Interactive            : Runs container interactively (-it --rm) instead of
-                            detached background daemon (-d --restart unless-stopped).
+  -ImageTag, -Tag         : n8nio/n8n version tag (latest, stable, 2.43.7).
+                            Default: latest (auto-resolves latest stable release)
+  -SandboxVersion         : Version tag for ghcr.io/n8n-io/n8n-sandbox-service-*.
+                            Default: 1.8.1
+  -SkipSandbox            : Deploys standalone single-container n8n without the
+                            Docker Compose Sandbox stack.
+  -Interactive            : Runs standalone container interactively (-it --rm).
   -SkipWslUpdate          : Skips executing 'wsl.exe --update' during deployment.
   -SkipDockerInstall      : Skips Docker Desktop installation step if already present.
   -ImportWorkflowsPath    : Local file (.json) or folder of workflows to transfer
                             and import into n8n with detailed progress bars.
   -UsePostgres            : Configures PostgreSQL backend via DB_POSTGRESDB_* env vars.
-  -Update, -u, -Upgrade   : Pulls updated n8nio/n8n image and recreates container.
-  -Status, -s, -Info      : Shows WSL2/Docker/n8n status, tool paths, and usage guide.
+  -Update, -u, -Upgrade   : Pulls updated n8n & sandbox images and recreates stack.
+  -Status, -s, -Info      : Shows WSL2/Docker/n8n Sandbox status and usage guide.
   -OpenBrowser            : Opens http://localhost:<Port> after deployment.
   -LogPath, -l, -Log      : Custom log file path. Default:
                             C:\Logs\<DateTime>-deploy-n8n-on-windows-docker-desktop-<Computer>-<User>.logs
@@ -495,7 +560,7 @@ EXAMPLES:
   # Example 1: Show help and usage examples
   .\deploy-n8n-on-windows-docker-desktop.ps1 -h
 
-  # Example 2: Standard deployment (wsl.exe --update + Docker Desktop + n8n)
+  # Example 2: Standard deployment (wsl.exe --update + Docker Desktop + n8n with Sandbox)
   .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy
 
   # Example 3: Deploy with custom port, timezone, and auto-open Web UI
@@ -504,10 +569,10 @@ EXAMPLES:
   # Example 4: Deploy and upload/import local workflow JSON files with progress bar
   .\deploy-n8n-on-windows-docker-desktop.ps1 -Deploy -ImportWorkflowsPath "C:\Automation\Workflows"
 
-  # Example 5: Update existing n8n container to the latest stable release
-  .\deploy-n8n-on-windows-docker-desktop.ps1 -Update -ImageTag "latest"
+  # Example 5: Update existing n8n + Sandbox stack to the latest stable release
+  .\deploy-n8n-on-windows-docker-desktop.ps1 -Update
 
-  # Example 6: Inspect installed tool paths and quick-start commands
+  # Example 6: Inspect installed tool paths, Sandbox containers, and quick-start commands
   .\deploy-n8n-on-windows-docker-desktop.ps1 -Status
 ================================================================================
 "@
@@ -521,10 +586,12 @@ function Protect-ScriptInputs {
     [CmdletBinding()]
     param (
         [string]$InstallDir,
+        [string]$ComposeStackDir,
         [string]$Container,
         [string]$Volume,
         [string]$Tz,
         [string]$Tag,
+        [string]$SandboxVer,
         [string]$WorkflowsPath,
         [string]$CustomLogPath
     )
@@ -532,6 +599,7 @@ function Protect-ScriptInputs {
     # 1. Validate file system paths against shell injection tokens and traversal
     $pathsToCheck = @(
         @{ Label = "DockerInstallDir"; Path = $InstallDir },
+        @{ Label = "StackDir"; Path = $ComposeStackDir },
         @{ Label = "ImportWorkflowsPath"; Path = $WorkflowsPath },
         @{ Label = "LogPath"; Path = $CustomLogPath }
     )
@@ -564,9 +632,13 @@ function Protect-ScriptInputs {
         throw "Validation Error: Timezone '$Tz' contains invalid characters. Expected IANA format (e.g., 'Europe/Warsaw' or 'UTC')."
     }
 
-    # 4. Validate Docker Image Tag
+    # 4. Validate Docker Image Tags
     if ($Tag -notmatch '^[a-zA-Z0-9_.-]{1,128}$') {
         throw "Validation Error: ImageTag '$Tag' contains invalid characters."
+    }
+
+    if ($SandboxVer -notmatch '^[a-zA-Z0-9_.-]{1,128}$') {
+        throw "Validation Error: SandboxVersion '$SandboxVer' contains invalid characters."
     }
 }
 
@@ -578,14 +650,27 @@ if ($Help -or $PSBoundParameters.Count -eq 0) {
     exit 0
 }
 
+# Normalize DockerInstallDir and default StackDir
+$DockerInstallDirClean = $DockerInstallDir.TrimEnd('\', '/')
+if ($DockerInstallDirClean -match '^[a-zA-Z]:$') {
+    $DockerInstallDirClean = "$DockerInstallDirClean\"
+}
+
+if ([string]::IsNullOrWhiteSpace($StackDir)) {
+    $StackDir = Join-Path -Path $DockerInstallDirClean -ChildPath "n8n-stack"
+}
+$StackDirClean = $StackDir.TrimEnd('\', '/')
+
 # Validate all user inputs before elevating or executing commands
 try {
     Protect-ScriptInputs `
         -InstallDir $DockerInstallDir `
+        -ComposeStackDir $StackDirClean `
         -Container $ContainerName `
         -Volume $DataVolumeName `
         -Tz $Timezone `
         -Tag $ImageTag `
+        -SandboxVer $SandboxVersion `
         -WorkflowsPath $ImportWorkflowsPath `
         -CustomLogPath $LogPath
 }
@@ -593,12 +678,6 @@ catch {
     Write-Host "[X] $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "[!] Run '.\deploy-n8n-on-windows-docker-desktop.ps1 -h' for valid syntax and usage examples." -ForegroundColor Yellow
     exit 1
-}
-
-# Normalize DockerInstallDir (strip trailing backslash for clean CLI passing)
-$DockerInstallDirClean = $DockerInstallDir.TrimEnd('\', '/')
-if ($DockerInstallDirClean -match '^[a-zA-Z]:$') {
-    $DockerInstallDirClean = "$DockerInstallDirClean\"
 }
 
 # If user provided parameters like -DockerInstallDir or -Port without explicitly specifying -Deploy, -Update, or -Status, default to Deploy mode
@@ -645,8 +724,77 @@ if (-not $isAdmin) {
 }
 
 # ==============================================================================
-# HELPER FUNCTIONS FOR WSL2, DOCKER & N8N DEPLOYMENT
+# HELPER FUNCTIONS FOR WSL2, DOCKER, SANDBOX STACK & N8N DEPLOYMENT
 # ==============================================================================
+function New-CryptoHexSecret {
+    <#
+      Generates a cryptographically random 48-character hex secret (24 bytes),
+      equivalent to 'openssl rand -hex 24' in https://get.n8n.io.
+    #>
+    param (
+        [int]$ByteLength = 24
+    )
+    $bytes = New-Object byte[] $ByteLength
+    $rng   = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    }
+    finally {
+        if ($null -ne $rng) { $rng.Dispose() }
+    }
+    return ([System.BitConverter]::ToString($bytes).Replace("-", "").ToLowerInvariant())
+}
+
+function Resolve-N8nReleaseVersion {
+    <#
+      Resolves the latest stable n8n version from GitHub Releases API when
+      -ImageTag is 'latest' or 'stable', matching https://get.n8n.io behavior
+      so that docker.io/n8nio/n8n and ghcr.io/n8n-io/runners use identical versions.
+    #>
+    param (
+        [string]$RequestedTag
+    )
+
+    if ($RequestedTag -match '^[0-9]+\.[0-9]+\.[0-9]+') {
+        return $RequestedTag
+    }
+
+    if ($RequestedTag -notin @("latest", "stable")) {
+        return $RequestedTag
+    }
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/n8n-io/n8n/releases/latest" -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+        if ($null -ne $rel -and $rel.tag_name -match 'n8n@([0-9]+\.[0-9]+\.[0-9]+)') {
+            return $Matches[1]
+        }
+    }
+    catch {
+        Write-Log -Level "INFO" -Message "Could not query GitHub releases API ($($_.Exception.Message)). Using fallback version $($SCRIPT_INFO.FallbackN8nVer)."
+    }
+
+    return $SCRIPT_INFO.FallbackN8nVer
+}
+
+function Write-Utf8LfFile {
+    <#
+      Writes a file with UTF-8 (no BOM) encoding and Unix LF (\n) line endings
+      so Linux containers (sandbox-certs, searxng, n8n) parse files cleanly.
+    #>
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content
+    )
+
+    $lfContent   = $Content -replace "`r`n", "`n"
+    $utf8NoBom   = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($FilePath, $lfContent, $utf8NoBom)
+}
+
 function Show-ExecutionParameters {
     param (
         [string]$ActionMode
@@ -656,8 +804,9 @@ function Show-ExecutionParameters {
     $winContainersRoot  = Join-Path -Path $DockerInstallDirClean -ChildPath "windows-containers"
     $installerCachePath = Join-Path -Path $DockerInstallDirClean -ChildPath "installer"
     $wslUpdateAction    = if ($SkipWslUpdate) { "Skipped (-SkipWslUpdate)" } else { "Enabled (wsl.exe --update & default version 2)" }
+    $sandboxArchitecture = if ($SkipSandbox) { "Disabled (-SkipSandbox: Standalone single container)" } else { "Enabled (Docker Compose: n8n + sandbox-certs + sandbox-api + sandbox-runner-1 + runners + searxng)" }
     $dbBackend          = if ($UsePostgres) { "PostgreSQL ($PostgresHost`:$PostgresPort/$PostgresDatabase)" } else { "SQLite (Default in /home/node/.n8n)" }
-    $executionMode      = if ($Interactive) { "Interactive Foreground (-it --rm)" } else { "Detached Daemon (-d --restart unless-stopped)" }
+    $executionMode      = if ($SkipSandbox -and $Interactive) { "Interactive Foreground (-it --rm)" } elseif ($SkipSandbox) { "Detached Daemon (-d --restart unless-stopped)" } else { "Docker Compose v2 Stack (docker compose up -d)" }
 
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  $($SCRIPT_INFO.Name) v$($SCRIPT_INFO.Version) - Detailed Execution Parameters" -ForegroundColor Cyan
@@ -670,7 +819,12 @@ function Show-ExecutionParameters {
     Write-Log -Level "PARAM" -Message ("  WSL2 Data Root Path       : {0}" -f $wslDataRoot) -Color White
     Write-Log -Level "PARAM" -Message ("  Win Containers Data Root  : {0}" -f $winContainersRoot) -Color White
     Write-Log -Level "PARAM" -Message ("  Installer Staging Folder  : {0}" -f $installerCachePath) -Color White
-    Write-Log -Level "PARAM" -Message ("  n8n Docker Image          : n8nio/n8n:{0}" -f $ImageTag) -Color White
+    Write-Log -Level "PARAM" -Message ("  n8n Sandbox Architecture  : {0}" -f $sandboxArchitecture) -Color White
+    if (-not $SkipSandbox) {
+        Write-Log -Level "PARAM" -Message ("  Sandbox Stack Directory   : {0}" -f $StackDirClean) -Color White
+        Write-Log -Level "PARAM" -Message ("  Sandbox Service Version   : ghcr.io/n8n-io/n8n-sandbox-service-*:{0}" -f $SandboxVersion) -Color White
+    }
+    Write-Log -Level "PARAM" -Message ("  n8n Image Tag / Version   : n8nio/n8n:{0}" -f $ImageTag) -Color White
     Write-Log -Level "PARAM" -Message ("  n8n Container Name        : {0}" -f $ContainerName) -Color White
     Write-Log -Level "PARAM" -Message ("  n8n Persistent Volume     : {0} -> /home/node/.n8n" -f $DataVolumeName) -Color White
     Write-Log -Level "PARAM" -Message ("  n8n Host Port Mapping     : http://localhost:{0} -> 5678/tcp" -f $Port) -Color White
@@ -811,6 +965,10 @@ function Resolve-DockerPaths {
         WslDataRoot      = (Join-Path -Path $DockerInstallDirClean -ChildPath "wsl")
         WinDataRoot      = (Join-Path -Path $DockerInstallDirClean -ChildPath "windows-containers")
         InstallerDir     = (Join-Path -Path $DockerInstallDirClean -ChildPath "installer")
+        StackDir         = $StackDirClean
+        ComposeFile      = (Join-Path -Path $StackDirClean -ChildPath "compose.yml")
+        EnvFile          = (Join-Path -Path $StackDirClean -ChildPath ".env")
+        SearxngFile      = (Join-Path -Path $StackDirClean -ChildPath "searxng-settings.yml")
     }
 }
 
@@ -859,10 +1017,11 @@ function Install-DockerDesktopCustom {
         $paths.CustomInstallDir,
         $paths.WslDataRoot,
         $paths.WinDataRoot,
-        $paths.InstallerDir
+        $paths.InstallerDir,
+        $paths.StackDir
     )
 
-    Write-Log -Level "STEP" -Message "Preparing Docker directories in '$($paths.CustomInstallDir)'..."
+    Write-Log -Level "STEP" -Message "Preparing Docker & n8n Sandbox directories in '$($paths.CustomInstallDir)'..."
     $dirIdx = 0
     foreach ($dir in $dirsToCreate) {
         $dirIdx++
@@ -890,8 +1049,7 @@ function Install-DockerDesktopCustom {
         throw "WinGet (Windows Package Manager) was not found on this system. Please install App Installer / WinGet first."
     }
 
-    $installerExePath = Join-Path -Path $paths.InstallerDir -ChildPath "Docker Desktop Installer.exe"
-    $installFlags     = "install --quiet --accept-license --always-run-service --installation-dir=`"$($paths.CustomInstallDir)`" --wsl-default-data-root=`"$($paths.WslDataRoot)`" --windows-containers-default-data-root=`"$($paths.WinDataRoot)`""
+    $installFlags = "install --quiet --accept-license --always-run-service --installation-dir=`"$($paths.CustomInstallDir)`" --wsl-default-data-root=`"$($paths.WslDataRoot)`" --windows-containers-default-data-root=`"$($paths.WinDataRoot)`""
 
     Write-Log -Level "STEP" -Message "Downloading Docker Desktop (Docker.DockerDesktop) via WinGet into '$($paths.InstallerDir)'..."
     Write-Log -Level "INFO" -Message "Target Install Location : $($paths.CustomInstallDir)"
@@ -1079,10 +1237,13 @@ function Start-DockerEngineAndWait {
 function Invoke-DockerImagePullWithProgress {
     param (
         [string]$DockerCli,
-        [string]$ImageReference
+        [string]$ImageReference,
+        [int]$ImageIndex = 1,
+        [int]$TotalImages = 1
     )
 
-    Write-Log -Level "STEP" -Message "Pulling Docker image '$ImageReference' from registry..."
+    $prefixLabel = if ($TotalImages -gt 1) { "[$ImageIndex/$TotalImages] " } else { "" }
+    Write-Log -Level "STEP" -Message "${prefixLabel}Pulling Docker image '$ImageReference' from registry..."
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName               = $DockerCli
@@ -1097,12 +1258,10 @@ function Invoke-DockerImagePullWithProgress {
     [void]$proc.Start()
 
     $layerStates = @{}
-    $lineCount   = 0
 
     while (-not $proc.StandardOutput.EndOfStream) {
         $line = $proc.StandardOutput.ReadLine()
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        $lineCount++
 
         if ($line -match '^([a-f0-9]{12}):\s+(.+)$') {
             $layerId     = $Matches[1]
@@ -1114,7 +1273,7 @@ function Invoke-DockerImagePullWithProgress {
         $doneLayers  = @($layerStates.Values | Where-Object { $_ -match 'Pull complete|Already exists' }).Count
         $pct         = [math]::Min([int](($doneLayers / $totalLayers) * 100), 99)
 
-        Write-Progress -Id 14 -ParentId 1 -Activity "Pulling n8n Docker Image ($ImageReference)" `
+        Write-Progress -Id 14 -ParentId 1 -Activity "${prefixLabel}Pulling Docker Image ($ImageReference)" `
             -Status "Layers completed: [$doneLayers/$totalLayers] ($pct%) | $line" `
             -PercentComplete $pct
 
@@ -1123,13 +1282,13 @@ function Invoke-DockerImagePullWithProgress {
 
     $stderr = $proc.StandardError.ReadToEnd()
     $proc.WaitForExit()
-    Write-Progress -Id 14 -ParentId 1 -Activity "Pulling n8n Docker Image ($ImageReference)" -Completed
+    Write-Progress -Id 14 -ParentId 1 -Activity "${prefixLabel}Pulling Docker Image ($ImageReference)" -Completed
 
     if ($proc.ExitCode -ne 0) {
         throw "Failed to pull Docker image '$ImageReference' (Exit Code: $($proc.ExitCode)). Details: $stderr"
     }
 
-    Write-Log -Level "SUCCESS" -Message "Successfully pulled Docker image '$ImageReference'."
+    Write-Log -Level "SUCCESS" -Message "${prefixLabel}Successfully pulled Docker image '$ImageReference'."
 }
 
 function Copy-WorkflowsToContainerWithProgress {
@@ -1216,7 +1375,448 @@ function Copy-WorkflowsToContainerWithProgress {
     Write-Log -Level "SUCCESS" -Message "Finished transferring $($files.Count) file(s) ($totalKB KB) to container '$TargetContainer'."
 }
 
-function Deploy-N8nContainer {
+function Initialize-N8nSandboxStackFiles {
+    <#
+      Generates the official n8n Docker Compose Sandbox Stack files inside $DockerPaths.StackDir:
+      1. searxng-settings.yml (enables JSON API for n8n Assistant web search)
+      2. .env (preserves existing secrets on re-runs/upgrades, sets versions, timezone, port, DB)
+      3. compose.yml (official 6-service stack: sandbox-certs, sandbox-api, sandbox-runner-1,
+         n8n, runners, searxng, bound to the persistent $DataVolumeName volume)
+    #>
+    param (
+        [PSCustomObject]$DockerPaths,
+        [string]$ResolvedN8nVersion
+    )
+
+    if (-not [System.IO.Directory]::Exists($DockerPaths.StackDir)) {
+        [System.IO.Directory]::CreateDirectory($DockerPaths.StackDir) | Out-Null
+        Write-Log -Level "SUCCESS" -Message "Created Sandbox stack directory: $($DockerPaths.StackDir)"
+    }
+
+    # 1. Write searxng-settings.yml
+    $searxngYaml = @"
+# Generated by $($SCRIPT_INFO.FileName) v$($SCRIPT_INFO.Version).
+# SearXNG configuration for the n8n AI Assistant (enables JSON API).
+use_default_settings: true
+search:
+  formats:
+    - html
+    - json
+"@
+    Write-Utf8LfFile -FilePath $DockerPaths.SearxngFile -Content $searxngYaml
+    Write-Log -Level "SUCCESS" -Message "Created SearXNG configuration: $($DockerPaths.SearxngFile)"
+
+    # 2. Read existing .env secrets if present so re-runs / upgrades preserve tokens & user AI keys
+    $existingEnv = @{}
+    if ([System.IO.File]::Exists($DockerPaths.EnvFile)) {
+        $lines = [System.IO.File]::ReadAllLines($DockerPaths.EnvFile, [System.Text.Encoding]::UTF8)
+        foreach ($line in $lines) {
+            if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$') {
+                $existingEnv[$Matches[1]] = $Matches[2]
+            }
+        }
+        Write-Log -Level "INFO" -Message "Preserving existing secrets from '$($DockerPaths.EnvFile)'."
+    }
+
+    $runnersToken      = if ($existingEnv.ContainsKey("N8N_RUNNERS_AUTH_TOKEN") -and -not [string]::IsNullOrWhiteSpace($existingEnv["N8N_RUNNERS_AUTH_TOKEN"])) { $existingEnv["N8N_RUNNERS_AUTH_TOKEN"] } else { New-CryptoHexSecret }
+    $searxngSecret     = if ($existingEnv.ContainsKey("SEARXNG_SECRET") -and -not [string]::IsNullOrWhiteSpace($existingEnv["SEARXNG_SECRET"])) { $existingEnv["SEARXNG_SECRET"] } else { New-CryptoHexSecret }
+    $sandboxApiKey     = if ($existingEnv.ContainsKey("SANDBOX_API_KEYS") -and -not [string]::IsNullOrWhiteSpace($existingEnv["SANDBOX_API_KEYS"])) { $existingEnv["SANDBOX_API_KEYS"] } else { New-CryptoHexSecret }
+    $registrationToken = if ($existingEnv.ContainsKey("SANDBOX_API_RUNNER_REGISTRATION_TOKEN") -and -not [string]::IsNullOrWhiteSpace($existingEnv["SANDBOX_API_RUNNER_REGISTRATION_TOKEN"])) { $existingEnv["SANDBOX_API_RUNNER_REGISTRATION_TOKEN"] } else { New-CryptoHexSecret }
+    $runnerKey         = if ($existingEnv.ContainsKey("SANDBOX_API_RUNNER_API_KEY") -and -not [string]::IsNullOrWhiteSpace($existingEnv["SANDBOX_API_RUNNER_API_KEY"])) { $existingEnv["SANDBOX_API_RUNNER_API_KEY"] } else { New-CryptoHexSecret }
+    $braveApiKey       = if ($existingEnv.ContainsKey("INSTANCE_AI_BRAVE_SEARCH_API_KEY")) { $existingEnv["INSTANCE_AI_BRAVE_SEARCH_API_KEY"] } else { "" }
+
+    $postgresBlock = ""
+    if ($UsePostgres) {
+        $postgresBlock = @"
+
+# PostgreSQL Database Configuration
+DB_TYPE=postgresdb
+DB_POSTGRESDB_DATABASE=$PostgresDatabase
+DB_POSTGRESDB_HOST=$PostgresHost
+DB_POSTGRESDB_PORT=$PostgresPort
+DB_POSTGRESDB_USER=$PostgresUser
+DB_POSTGRESDB_SCHEMA=$PostgresSchema
+DB_POSTGRESDB_PASSWORD=$PostgresPassword
+"@
+    }
+
+    $envContent = @"
+# Generated by $($SCRIPT_INFO.FileName) v$($SCRIPT_INFO.Version)
+# Official n8n + Sandbox Service Stack Configuration (https://get.n8n.io)
+
+# Versions & Host Binding
+N8N_VERSION=$ResolvedN8nVersion
+N8N_SANDBOX_VERSION=$SandboxVersion
+N8N_PORT=$Port
+N8N_CONTAINER_NAME=$ContainerName
+N8N_DATA_VOLUME=$DataVolumeName
+
+# Timezone & Security Permissions
+GENERIC_TIMEZONE=$Timezone
+TZ=$Timezone
+N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+
+# External Task Runners (JS & Python Code Node Isolation)
+N8N_RUNNERS_MODE=external
+N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+N8N_RUNNERS_AUTH_TOKEN=$runnersToken
+
+# Web Search for n8n AI Assistant (Bundled SearXNG + Optional Brave Search)
+INSTANCE_AI_BRAVE_SEARCH_API_KEY=$braveApiKey
+N8N_INSTANCE_AI_SEARXNG_URL=http://searxng:8080
+SEARXNG_SECRET=$searxngSecret
+
+# n8n AI Assistant Sandbox Service Configuration
+N8N_INSTANCE_AI_SANDBOX_ENABLED=true
+N8N_INSTANCE_AI_SANDBOX_PROVIDER=n8n-sandbox
+N8N_INSTANCE_AI_SANDBOX_API_URL=http://sandbox-api:8080
+N8N_SANDBOX_SERVICE_URL=http://sandbox-api:8080
+
+# Sandbox Mutual Authentication Secrets
+SANDBOX_API_KEYS=$sandboxApiKey
+N8N_SANDBOX_SERVICE_API_KEY=$sandboxApiKey
+
+SANDBOX_API_RUNNER_REGISTRATION_TOKEN=$registrationToken
+SANDBOX_RUNNER_REGISTRATION_TOKEN=$registrationToken
+
+SANDBOX_API_RUNNER_API_KEY=$runnerKey
+SANDBOX_RUNNER_API_KEYS=$runnerKey$postgresBlock
+"@
+
+    # Preserve any custom N8N_INSTANCE_AI_MODEL* or extra user variables from previous .env
+    $managedKeys = @(
+        "N8N_VERSION", "N8N_SANDBOX_VERSION", "N8N_PORT", "N8N_CONTAINER_NAME", "N8N_DATA_VOLUME",
+        "GENERIC_TIMEZONE", "TZ", "N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS",
+        "N8N_RUNNERS_MODE", "N8N_RUNNERS_BROKER_LISTEN_ADDRESS", "N8N_RUNNERS_AUTH_TOKEN",
+        "INSTANCE_AI_BRAVE_SEARCH_API_KEY", "N8N_INSTANCE_AI_SEARXNG_URL", "SEARXNG_SECRET",
+        "N8N_INSTANCE_AI_SANDBOX_ENABLED", "N8N_INSTANCE_AI_SANDBOX_PROVIDER",
+        "N8N_INSTANCE_AI_SANDBOX_API_URL", "N8N_SANDBOX_SERVICE_URL",
+        "SANDBOX_API_KEYS", "N8N_SANDBOX_SERVICE_API_KEY",
+        "SANDBOX_API_RUNNER_REGISTRATION_TOKEN", "SANDBOX_RUNNER_REGISTRATION_TOKEN",
+        "SANDBOX_API_RUNNER_API_KEY", "SANDBOX_RUNNER_API_KEYS",
+        "DB_TYPE", "DB_POSTGRESDB_DATABASE", "DB_POSTGRESDB_HOST", "DB_POSTGRESDB_PORT",
+        "DB_POSTGRESDB_USER", "DB_POSTGRESDB_SCHEMA", "DB_POSTGRESDB_PASSWORD"
+    )
+    $extraLines = New-Object System.Collections.Generic.List[string]
+    foreach ($kvp in $existingEnv.GetEnumerator()) {
+        if ($kvp.Key -notin $managedKeys) {
+            $extraLines.Add("$($kvp.Key)=$($kvp.Value)")
+        }
+    }
+    if ($extraLines.Count -gt 0) {
+        $envContent += "`n# Preserved Custom Variables`n" + ($extraLines -join "`n") + "`n"
+    }
+
+    Write-Utf8LfFile -FilePath $DockerPaths.EnvFile -Content $envContent
+    Write-Log -Level "SUCCESS" -Message "Created/updated environment secrets file: $($DockerPaths.EnvFile)"
+
+    # 3. Write compose.yml (based on official https://raw.githubusercontent.com/n8n-io/n8n/master/docker/get-n8n-compose.yml)
+    $composeYaml = @"
+# n8n + Sandbox Service Stack definition (https://get.n8n.io)
+# Generated by $($SCRIPT_INFO.FileName) v$($SCRIPT_INFO.Version)
+# compose-version: 2
+
+name: n8n-sandbox-stack
+
+volumes:
+  n8n-data:
+    name: ${DataVolumeName}
+  sandbox-tls:
+    name: ${DataVolumeName}_sandbox_tls
+
+services:
+  sandbox-certs:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-api:`${N8N_SANDBOX_VERSION}
+    container_name: ${ContainerName}-sandbox-certs
+    user: '0:0'
+    entrypoint: ['sh', '-c']
+    command:
+      - >
+        bootstrap-mtls.sh --out-dir /tls --api-san sandbox-api
+        --control-san-prefix sandbox-runner --world-readable &&
+        chown -R sandbox-api:sandbox-api /tls/api && chmod -R a+rX /tls
+    environment:
+      NUM_RUNNERS: '1'
+    volumes:
+      - sandbox-tls:/tls
+
+  sandbox-api:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-api:`${N8N_SANDBOX_VERSION}
+    container_name: ${ContainerName}-sandbox-api
+    restart: unless-stopped
+    depends_on:
+      sandbox-certs:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      SANDBOX_API_GRPC_TLS_CERT_FILE: /tls/api/grpc-server.crt
+      SANDBOX_API_GRPC_TLS_KEY_FILE: /tls/api/grpc-server.key
+      SANDBOX_API_GRPC_TLS_CLIENT_CA_FILE: /tls/api/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CA_FILE: /tls/api/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/api/control-grpc-api-client.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/api/control-grpc-api-client.key
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_SERVER_NAME: sandbox-runner-1
+    volumes:
+      - sandbox-tls:/tls:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  sandbox-runner-1:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-runner-dind:`${N8N_SANDBOX_VERSION}
+    container_name: ${ContainerName}-sandbox-runner-1
+    restart: unless-stopped
+    privileged: true
+    depends_on:
+      sandbox-api:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      SANDBOX_RUNNER_API_GRPC_ADDR: sandbox-api:9090
+      SANDBOX_RUNNER_HTTP_BASE_URL: https://sandbox-runner-1:8080
+      SANDBOX_RUNNER_CONTROL_GRPC_LISTEN_ADDR: ':9091'
+      SANDBOX_RUNNER_CONTROL_GRPC_ADVERTISE_ADDR: sandbox-runner-1:9091
+      SANDBOX_RUNNER_ID: runner-1
+      SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE: ghcr.io/n8n-io/n8n-sandbox-service-sandbox:`${N8N_SANDBOX_VERSION}
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CA_FILE: /tls/runner/ca.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CERT_FILE: /tls/runner/grpc-client.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_KEY_FILE: /tls/runner/grpc-client.key
+      SANDBOX_RUNNER_REGISTRATION_GRPC_SERVER_NAME: sandbox-api
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/runner/control-grpc-server.crt
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/runner/control-grpc-server.key
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CLIENT_CA_FILE: /tls/runner/ca.crt
+    volumes:
+      - sandbox-tls:/tls:ro
+
+  n8n:
+    image: docker.io/n8nio/n8n:`${N8N_VERSION}
+    container_name: ${ContainerName}
+    restart: unless-stopped
+    depends_on:
+      sandbox-api:
+        condition: service_healthy
+    ports:
+      - '${Port}:5678'
+    env_file: .env
+    volumes:
+      - n8n-data:/home/node/.n8n
+
+  runners:
+    image: ghcr.io/n8n-io/runners:`${N8N_VERSION}
+    container_name: ${ContainerName}-runners
+    restart: unless-stopped
+    depends_on:
+      - n8n
+    environment:
+      N8N_RUNNERS_AUTH_TOKEN: `${N8N_RUNNERS_AUTH_TOKEN}
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
+      N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT: '15'
+
+  searxng:
+    image: ghcr.io/searxng/searxng:latest
+    container_name: ${ContainerName}-searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: `${SEARXNG_SECRET}
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+"@
+    Write-Utf8LfFile -FilePath $DockerPaths.ComposeFile -Content $composeYaml
+    Write-Log -Level "SUCCESS" -Message "Created Docker Compose Sandbox stack file: $($DockerPaths.ComposeFile)"
+}
+
+function Deploy-N8nSandboxStack {
+    <#
+      Deploys the complete official n8n + Sandbox Service Docker Compose stack:
+      - sandbox-certs
+      - sandbox-api
+      - sandbox-runner-1 (DinD)
+      - n8n
+      - runners (Task Runners)
+      - searxng
+    #>
+    param (
+        [PSCustomObject]$DockerPaths,
+        [switch]$IsUpdateMode
+    )
+
+    $dockerCli = $DockerPaths.DockerCli
+
+    # Verify Docker Compose v2 plugin availability
+    $ErrorActionPreferenceBackup = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $composeVerOut = & $dockerCli compose version 2>&1
+    $composeExit   = $LASTEXITCODE
+    $ErrorActionPreference = $ErrorActionPreferenceBackup
+
+    if ($composeExit -ne 0) {
+        throw "Docker Compose v2 plugin ('docker compose') is not available: $composeVerOut"
+    }
+    Write-Log -Level "SUCCESS" -Message "Docker Compose v2 verified: $($composeVerOut | Select-Object -First 1)"
+
+    # Resolve target n8n release version so n8nio/n8n and ghcr.io/n8n-io/runners match
+    $resolvedN8nVer = Resolve-N8nReleaseVersion -RequestedTag $ImageTag
+    Write-Log -Level "INFO" -Message "Target versions -> n8n: $resolvedN8nVer | Sandbox Service: $SandboxVersion"
+
+    # Step 1: Ensure persistent Docker volumes exist
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 4/8] Creating persistent Docker volumes ('$DataVolumeName' & '${DataVolumeName}_sandbox_tls')..." -PercentComplete 48
+    Write-Log -Level "STEP" -Message "Creating persistent Docker volumes '$DataVolumeName' and '${DataVolumeName}_sandbox_tls'..."
+
+    $null = & $dockerCli volume create $DataVolumeName 2>&1
+    $null = & $dockerCli volume create "${DataVolumeName}_sandbox_tls" 2>&1
+    $volInspect = & $dockerCli volume inspect $DataVolumeName --format "{{.Mountpoint}}" 2>&1
+    Write-Log -Level "SUCCESS" -Message "Docker volume '$DataVolumeName' is ready (Mountpoint: $volInspect)."
+
+    # Step 2: Generate compose.yml, .env, and searxng-settings.yml in $DockerPaths.StackDir
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 5/8] Generating Docker Compose Sandbox stack files in '$($DockerPaths.StackDir)'..." -PercentComplete 55
+    Write-Log -Level "STEP" -Message "Generating n8n Sandbox stack configuration files in '$($DockerPaths.StackDir)'..."
+    Initialize-N8nSandboxStackFiles -DockerPaths $DockerPaths -ResolvedN8nVersion $resolvedN8nVer
+
+    # Step 3: Pull all required Sandbox & n8n images with detailed per-layer progress bars
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 6/8] Pulling n8n & Sandbox Docker images with layer progress..." -PercentComplete 65
+
+    $stackImages = @(
+        "ghcr.io/n8n-io/n8n-sandbox-service-api:$SandboxVersion",
+        "ghcr.io/n8n-io/n8n-sandbox-service-runner-dind:$SandboxVersion",
+        "ghcr.io/n8n-io/n8n-sandbox-service-sandbox:$SandboxVersion",
+        "docker.io/n8nio/n8n:$resolvedN8nVer",
+        "ghcr.io/n8n-io/runners:$resolvedN8nVer",
+        "ghcr.io/searxng/searxng:latest"
+    )
+
+    $imgIdx = 0
+    foreach ($img in $stackImages) {
+        $imgIdx++
+        $overallPct = [math]::Min(60 + [int](($imgIdx / $stackImages.Count) * 20), 82)
+        Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" `
+            -Status "[Step 6/8] Pulling stack image [$imgIdx/$($stackImages.Count)]: $img..." -PercentComplete $overallPct
+        Invoke-DockerImagePullWithProgress -DockerCli $dockerCli -ImageReference $img -ImageIndex $imgIdx -TotalImages $stackImages.Count
+    }
+
+    # Step 4: Remove any standalone container named $ContainerName that is not part of the Compose project
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 7/8] Starting n8n + Sandbox Docker Compose stack..." -PercentComplete 85
+    $ErrorActionPreferenceBackup = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $existingStandaloneId = (& $dockerCli ps -a --filter "name=^/${ContainerName}$" --format "{{.ID}}" 2>&1) | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($existingStandaloneId)) {
+        $composeLabel = (& $dockerCli inspect --format "{{ index .Config.Labels `"com.docker.compose.project`" }}" $ContainerName 2>&1) | Select-Object -First 1
+        if ([string]::IsNullOrWhiteSpace($composeLabel) -or $composeLabel -ne "n8n-sandbox-stack") {
+            Write-Log -Level "INFO" -Message "Stopping and removing standalone container '$ContainerName' ($existingStandaloneId) before starting Sandbox Compose stack (volume '$DataVolumeName' is preserved)..."
+            $null = & $dockerCli stop $ContainerName 2>&1
+            $null = & $dockerCli rm $ContainerName 2>&1
+            Write-Log -Level "SUCCESS" -Message "Transitioned standalone container '$ContainerName' to Docker Compose Sandbox stack."
+        }
+    }
+    $ErrorActionPreference = $ErrorActionPreferenceBackup
+
+    # Step 5: Execute 'docker compose -f compose.yml up -d'
+    Write-Log -Level "STEP" -Message "Starting n8n + Sandbox stack via Docker Compose: docker compose -f `"$($DockerPaths.ComposeFile)`" --env-file `"$($DockerPaths.EnvFile)`" up -d --remove-orphans"
+    Write-Progress -Id 16 -ParentId 1 -Activity "Starting Docker Compose Sandbox Stack" `
+        -Status "Bootstrapping sandbox-certs (mTLS), sandbox-api, sandbox-runner-1, n8n, runners, and searxng..." -PercentComplete 50
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName               = $dockerCli
+    $psi.Arguments              = "compose -f `"$($DockerPaths.ComposeFile)`" --env-file `"$($DockerPaths.EnvFile)`" up -d --remove-orphans"
+    $psi.WorkingDirectory       = $DockerPaths.StackDir
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError  = $true
+    $psi.UseShellExecute        = $false
+    $psi.CreateNoWindow         = $true
+
+    $upProc = New-Object System.Diagnostics.Process
+    $upProc.StartInfo = $psi
+    [void]$upProc.Start()
+
+    $upStart = Get-Date
+    while (-not $upProc.HasExited) {
+        Start-Sleep -Milliseconds 500
+        $elapsed = [int]((Get-Date) - $upStart).TotalSeconds
+        $pct     = [math]::Min(50 + ($elapsed * 2), 95)
+        Write-Progress -Id 16 -ParentId 1 -Activity "Starting Docker Compose Sandbox Stack" `
+            -Status "Waiting for sandbox-certs & sandbox-api healthcheck and container startup (${elapsed}s)..." -PercentComplete $pct
+    }
+    $upStdOut = $upProc.StandardOutput.ReadToEnd()
+    $upStdErr = $upProc.StandardError.ReadToEnd()
+    $upProc.WaitForExit()
+    Write-Progress -Id 16 -ParentId 1 -Activity "Starting Docker Compose Sandbox Stack" -Completed
+
+    if (-not [string]::IsNullOrWhiteSpace($upStdOut)) {
+        foreach ($l in ($upStdOut -split "`r?`n")) {
+            if (-not [string]::IsNullOrWhiteSpace($l)) { Write-Log -Level "INFO" -Message "  [compose] $l" }
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($upStdErr)) {
+        foreach ($l in ($upStdErr -split "`r?`n")) {
+            if (-not [string]::IsNullOrWhiteSpace($l)) { Write-Log -Level "INFO" -Message "  [compose] $l" }
+        }
+    }
+
+    if ($upProc.ExitCode -ne 0) {
+        throw "Docker Compose stack startup failed with exit code $($upProc.ExitCode). Details: $upStdErr"
+    }
+
+    Write-Log -Level "SUCCESS" -Message "Started n8n $resolvedN8nVer and Sandbox Services ($SandboxVersion) via Docker Compose."
+
+    # Step 6: Verify n8n HTTP healthz and internal sandbox-api healthz
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 8/8] Verifying n8n & Sandbox API health endpoints..." -PercentComplete 92
+    $healthUrl = "http://localhost:$Port/healthz"
+    $maxWait   = 120
+    $waited    = 0
+    $healthy   = $false
+
+    while ($waited -lt $maxWait) {
+        $waited += 3
+        $hPct = [math]::Min([int](($waited / $maxWait) * 100), 99)
+        Write-Progress -Id 17 -ParentId 1 -Activity "Verifying n8n & Sandbox Health" `
+            -Status "Polling $healthUrl (${waited}s / ${maxWait}s)..." -PercentComplete $hPct
+
+        try {
+            $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+            if ($resp.StatusCode -eq 200) {
+                $healthy = $true
+                break
+            }
+        }
+        catch {
+            Start-Sleep -Seconds 3
+        }
+    }
+    Write-Progress -Id 17 -ParentId 1 -Activity "Verifying n8n & Sandbox Health" -Completed
+
+    if ($healthy) {
+        Write-Log -Level "SUCCESS" -Message "n8n Web Editor is online and healthy at http://localhost:$Port"
+    }
+    else {
+        Write-Log -Level "WARN" -Message "n8n stack is running, but HTTP check at $healthUrl is still initializing. Check 'docker compose -f `"$($DockerPaths.ComposeFile)`" logs n8n'."
+    }
+
+    # Verify internal sandbox-api connectivity from inside the n8n container
+    $ErrorActionPreferenceBackup = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $sandboxHealthOut = (& $dockerCli exec $ContainerName wget -qO- "http://sandbox-api:8080/healthz" 2>&1) | Select-Object -First 1
+    $sandboxHealthExit = $LASTEXITCODE
+    $ErrorActionPreference = $ErrorActionPreferenceBackup
+
+    if ($sandboxHealthExit -eq 0 -and $sandboxHealthOut -match '"status"\s*:\s*"ok"') {
+        Write-Log -Level "SUCCESS" -Message "Sandbox API health verified from inside n8n container (http://sandbox-api:8080/healthz -> $sandboxHealthOut)."
+    }
+    else {
+        Write-Log -Level "INFO" -Message "Sandbox API health check response: $sandboxHealthOut"
+    }
+
+    # Step 7: Optional workflow upload with detailed file transfer progress
+    if (-not [string]::IsNullOrWhiteSpace($ImportWorkflowsPath)) {
+        Copy-WorkflowsToContainerWithProgress -DockerCli $dockerCli -TargetContainer $ContainerName -SourcePath $ImportWorkflowsPath
+    }
+}
+
+function Deploy-N8nStandaloneContainer {
+    <#
+      Legacy single-container deployment mode (used only when -SkipSandbox is specified).
+    #>
     param (
         [PSCustomObject]$DockerPaths,
         [switch]$IsUpdateMode
@@ -1371,9 +1971,13 @@ function Show-ToolsAndUsageSummary {
     $dockerCompose  = Join-Path -Path (Split-Path -Path $dockerCli -Parent) -ChildPath "docker-compose.exe"
     $desktopGui     = if (-not [string]::IsNullOrWhiteSpace($DockerPaths.DockerDesktopGui)) { $DockerPaths.DockerDesktopGui } else { "$($DockerPaths.CustomInstallDir)\Docker Desktop.exe" }
 
-    $dockerVersion  = "Not running / Not installed"
-    $containerState = "Not found"
-    $volumeMount    = "/var/lib/docker/volumes/$DataVolumeName/_data (inside WSL2)"
+    $dockerVersion      = "Not running / Not installed"
+    $n8nState           = "Not found"
+    $sandboxApiState    = "Not found"
+    $sandboxRunnerState = "Not found"
+    $runnersState       = "Not found"
+    $searxngState       = "Not found"
+    $volumeMount        = "/var/lib/docker/volumes/$DataVolumeName/_data (inside WSL2)"
 
     if ([System.IO.File]::Exists($dockerCli)) {
         $ErrorActionPreferenceBackup = $ErrorActionPreference
@@ -1382,9 +1986,19 @@ function Show-ToolsAndUsageSummary {
         if ($LASTEXITCODE -eq 0 -and $verOut) { $dockerVersion = $verOut }
 
         $cStatus = (& $dockerCli ps -a --filter "name=^/${ContainerName}$" --format "{{.Status}} ({{.Image}})" 2>&1) | Select-Object -First 1
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($cStatus)) {
-            $containerState = $cStatus
-        }
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($cStatus)) { $n8nState = $cStatus }
+
+        $apiStatus = (& $dockerCli ps -a --filter "name=^/${ContainerName}-sandbox-api$" --format "{{.Status}} ({{.Image}})" 2>&1) | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($apiStatus)) { $sandboxApiState = $apiStatus }
+
+        $runnerStatus = (& $dockerCli ps -a --filter "name=^/${ContainerName}-sandbox-runner-1$" --format "{{.Status}} ({{.Image}})" 2>&1) | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($runnerStatus)) { $sandboxRunnerState = $runnerStatus }
+
+        $taskRunnerStatus = (& $dockerCli ps -a --filter "name=^/${ContainerName}-runners$" --format "{{.Status}} ({{.Image}})" 2>&1) | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($taskRunnerStatus)) { $runnersState = $taskRunnerStatus }
+
+        $searxStatus = (& $dockerCli ps -a --filter "name=^/${ContainerName}-searxng$" --format "{{.Status}} ({{.Image}})" 2>&1) | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($searxStatus)) { $searxngState = $searxStatus }
 
         $vMount = (& $dockerCli volume inspect $DataVolumeName --format "{{.Mountpoint}}" 2>&1) | Select-Object -First 1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($vMount)) {
@@ -1408,26 +2022,36 @@ function Show-ToolsAndUsageSummary {
       * WSL2 Disk Data Root      : $($DockerPaths.WslDataRoot)
       * Windows Containers Root  : $($DockerPaths.WinDataRoot)
       * Installer Cache Folder   : $($DockerPaths.InstallerDir)
+      * Sandbox Stack Directory  : $($DockerPaths.StackDir)
+      * Compose Stack File       : $($DockerPaths.ComposeFile)
+      * Stack Secrets (.env)     : $($DockerPaths.EnvFile)
+      * SearXNG Settings File    : $($DockerPaths.SearxngFile)
       * n8n Persistent Volume    : $DataVolumeName -> /home/node/.n8n
+      * Sandbox TLS Volume       : ${DataVolumeName}_sandbox_tls -> /tls
       * Volume WSL2 Mountpoint   : $volumeMount
       * Execution Log File       : $($script:ActiveLogFile)
 
-  [2] N8N INSTANCE STATUS & ACCESS:
-      * Container Name           : $ContainerName
-      * Container Status         : $containerState
+  [2] N8N & SANDBOX STACK STATUS & ACCESS:
+      * n8n Main Container       : $ContainerName -> $n8nState
+      * Sandbox Control API      : ${ContainerName}-sandbox-api -> $sandboxApiState
+      * Sandbox Runner (DinD)    : ${ContainerName}-sandbox-runner-1 -> $sandboxRunnerState
+      * Code Task Runners        : ${ContainerName}-runners -> $runnersState
+      * SearXNG Web Search       : ${ContainerName}-searxng -> $searxngState
       * n8n Web Editor URL       : http://localhost:$Port
+      * n8n AI Assistant URL     : http://localhost:$Port/assistant
       * n8n Healthcheck URL      : http://localhost:$Port/healthz
 
-  [3] HOW TO USE WSL2, DOCKER & N8N (ESSENTIAL COMMANDS):
+  [3] HOW TO USE WSL2, DOCKER, SANDBOX & N8N (ESSENTIAL COMMANDS):
       * Open n8n in Browser      : Start-Process "http://localhost:$Port"
       * Update WSL2 Environment  : wsl.exe --update
-      * Check WSL2 Distributions : wsl.exe --list --verbose
-      * Check Running Containers : docker ps
-      * View Live n8n Logs       : docker logs -f $ContainerName
-      * Stop / Start / Restart   : docker stop $ContainerName | docker start $ContainerName | docker restart $ContainerName
+      * Check Stack Status       : docker compose -f "$($DockerPaths.ComposeFile)" ps
+      * Stop n8n + Sandbox Stack : docker compose -f "$($DockerPaths.ComposeFile)" down
+      * Start n8n + Sandbox Stack: docker compose -f "$($DockerPaths.ComposeFile)" up -d
+      * Verify Sandbox API Health: docker exec $ContainerName wget -qO- http://sandbox-api:8080/healthz
+      * View Live Stack Logs     : docker compose -f "$($DockerPaths.ComposeFile)" logs -f
       * Open Shell in n8n        : docker exec -it $ContainerName /bin/sh
       * Backup n8n Data Locally  : docker cp ${ContainerName}:/home/node/.n8n .\n8n_backup
-      * Update n8n via Script    : .\deploy-n8n-on-windows-docker-desktop.ps1 -Update
+      * Update Stack via Script  : .\deploy-n8n-on-windows-docker-desktop.ps1 -Update
 ================================================================================
 "@
     Write-Host $summaryBanner -ForegroundColor Green
@@ -1441,8 +2065,10 @@ try {
     Initialize-Logging -CustomLogPath $LogPath
 
     $modeLabel = if ($Status) { "Status & Tool Locations Inspection (-Status)" }
-                 elseif ($Update) { "Update n8n Container Image (-Update)" }
-                 else { "Full Deployment (WSL2 Update + WinGet Docker Desktop + n8n Container)" }
+                 elseif ($Update -and $SkipSandbox) { "Update Standalone n8n Container (-Update -SkipSandbox)" }
+                 elseif ($Update) { "Update n8n + Sandbox Stack (-Update)" }
+                 elseif ($SkipSandbox) { "Standalone Deployment (WSL2 + Docker Desktop + Single n8n Container)" }
+                 else { "Full Sandbox Deployment (WSL2 + Docker Desktop + n8n Docker Compose Sandbox Stack)" }
 
     Show-ExecutionParameters -ActionMode $modeLabel
 
@@ -1452,7 +2078,7 @@ try {
         exit 0
     }
 
-    Write-Progress -Id 1 -Activity "n8n Docker Deployment Pipeline" -Status "[Step 1/7] Provisioning & Updating WSL2 Environment (wsl.exe --update)..." -PercentComplete 8
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 1/8] Provisioning & Updating WSL2 Environment (wsl.exe --update)..." -PercentComplete 8
     if ($SkipWslUpdate -or $Update) {
         Write-Log -Level "INFO" -Message "Skipping WSL2 update step (-SkipWslUpdate / -Update)."
     }
@@ -1460,7 +2086,7 @@ try {
         Initialize-WslEnvironment
     }
 
-    Write-Progress -Id 1 -Activity "n8n Docker Deployment Pipeline" -Status "[Step 2/7] Checking & Installing Docker Desktop..." -PercentComplete 22
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 2/8] Checking & Installing Docker Desktop..." -PercentComplete 22
 
     $dockerPaths = $null
     if ($SkipDockerInstall -or $Update) {
@@ -1471,12 +2097,17 @@ try {
         $dockerPaths = Install-DockerDesktopCustom
     }
 
-    Write-Progress -Id 1 -Activity "n8n Docker Deployment Pipeline" -Status "[Step 3/7] Starting Docker Engine Daemon..." -PercentComplete 40
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Status "[Step 3/8] Starting Docker Engine Daemon..." -PercentComplete 38
     Start-DockerEngineAndWait -DockerPaths $dockerPaths
 
-    Deploy-N8nContainer -DockerPaths $dockerPaths -IsUpdateMode:$Update
+    if ($SkipSandbox) {
+        Deploy-N8nStandaloneContainer -DockerPaths $dockerPaths -IsUpdateMode:$Update
+    }
+    else {
+        Deploy-N8nSandboxStack -DockerPaths $dockerPaths -IsUpdateMode:$Update
+    }
 
-    Write-Progress -Id 1 -Activity "n8n Docker Deployment Pipeline" -Completed
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Completed
 
     Show-ToolsAndUsageSummary -DockerPaths $dockerPaths
 
@@ -1487,7 +2118,7 @@ try {
     }
 }
 catch {
-    Write-Progress -Id 1 -Activity "n8n Docker Deployment Pipeline" -Completed
+    Write-Progress -Id 1 -Activity "n8n Docker Sandbox Deployment Pipeline" -Completed
     Write-Log -Level "ERROR" -Message "Deployment failed: $($_.Exception.Message)"
     if ($_.ScriptStackTrace) {
         Write-Log -Level "ERROR" -Message "Stack Trace: $($_.ScriptStackTrace)" -NoConsole
