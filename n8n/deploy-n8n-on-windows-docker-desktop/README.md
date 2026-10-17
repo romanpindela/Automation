@@ -59,15 +59,18 @@ Modern self-hosted **n8n** instances—including the built-in **n8n AI Assistant
 deploy-n8n-on-windows-docker-desktop/
 ├── assets/
 │   ├── .gitkeep
-│   ├── Standard_run.jpg                      # Screenshot: Interactive help & zero-parameter run
-│   ├── deploying_docker.jpg                  # Screenshot: Docker Engine startup & directory preparation
-│   ├── deploying_docker2.jpg                 # Screenshot: Real-time n8nio/n8n image layer download progress
-│   ├── sandbox_for_n8n.jpg                   # Screenshot: Pulling n8n Sandbox stack images & Docker Desktop view
-│   ├── deployment_summary.jpg                # Screenshot: Full 6-service Sandbox stack startup & summary
-│   ├── Configuring_AI_Assistant_for_n8n.jpg  # Screenshot: Configuring n8n AI Assistant model at localhost:5678
-│   └── launching_n8n_on_localmachine.jpg     # Screenshot: Launching n8n Web UI & AI Assistant on localhost
-├── deploy-n8n-on-windows-docker-desktop.ps1  # Main PowerShell deployment & lifecycle script
-└── README.md                                 # Technical documentation & usage guide
+│   ├── Standard_run.jpg                                # Screenshot: Interactive help & zero-parameter run
+│   ├── deploying_docker.jpg                            # Screenshot: Docker Engine startup & directory preparation
+│   ├── deploying_docker2.jpg                           # Screenshot: Real-time n8nio/n8n image layer download progress
+│   ├── sandbox_for_n8n.jpg                             # Screenshot: Pulling n8n Sandbox stack images & Docker Desktop view
+│   ├── deployment_summary.jpg                          # Screenshot: Full 6-service Sandbox stack startup & summary
+│   ├── Updating_docker_configuration.jpg               # Screenshot: Updating existing n8n deployment to Sandbox stack (-Update)
+│   ├── deployment_summary2-updated_configuration.jpg   # Screenshot: Post-update summary with all 5 active Sandbox containers
+│   ├── Configuring_AI_Assistant_for_n8n.jpg            # Screenshot: Configuring n8n AI Assistant model at localhost:5678
+│   ├── Finished_deployment_Ask_AI_for_help.jpg         # Screenshot: Active n8n Assistant (Preview) ready to automate workflows
+│   └── launching_n8n_on_localmachine.jpg               # Screenshot: Launching n8n Web UI & AI Assistant on localhost
+├── deploy-n8n-on-windows-docker-desktop.ps1            # Main PowerShell deployment & lifecycle script
+└── README.md                                           # Technical documentation & usage guide
 ```
 
 Target SSD installation layout created by the script:
@@ -87,6 +90,48 @@ c:\DANE\rpindela\SSD\Docker\
 ├── windows-containers\             # Windows containers data root
 └── installer\                      # Downloaded Docker Desktop Installer cache
 ```
+
+---
+
+## 📦 What Does This Script Download & Create on Your Computer?
+
+Yes — **if Docker Desktop (`docker.exe`) is not installed on the system, the script automatically downloads and installs it via WinGet** into `c:\DANE\rpindela\SSD\Docker\`. If Docker Desktop is already installed, the script detects the existing binary and skips the installer download.
+
+Below is the complete breakdown of everything the script downloads from the internet and generates locally:
+
+### 1. System Packages & Installers (Downloaded Only If Missing or Outdated)
+* **WSL2 Linux Kernel & Subsystem Package (`wsl.exe --update`):**
+  * Checks and enables Windows features `Microsoft-Windows-Subsystem-Linux` and `VirtualMachinePlatform` (via `dism.exe` if disabled).
+  * Downloads and applies the latest official Microsoft WSL2 kernel update (`wsl.exe --update`) and sets WSL 2 as default (`wsl.exe --set-default-version 2`).
+* **Docker Desktop Installer (`Docker.DockerDesktop` via WinGet, ~620 MB):**
+  * **Downloaded only when `docker.exe` is not present** on the machine (checked in `c:\DANE\rpindela\SSD\Docker\resources\bin\docker.exe`, `C:\Program Files\Docker\Docker\resources\bin\docker.exe`, and `PATH`).
+  * Runs `winget download --id Docker.DockerDesktop --exact --download-directory "c:\DANE\rpindela\SSD\Docker\installer"` with a live MB/s progress bar, then executes silent installation (`install --quiet --accept-license`) pointing binaries, WSL2 data (`\wsl`), and Windows container storage (`\windows-containers`) to `c:\DANE\rpindela\SSD\Docker\`.
+
+### 2. Version Metadata Query (HTTPS REST Call)
+* **GitHub Releases API (`https://api.github.com/repos/n8n-io/n8n/releases/latest`):**
+  * When `-ImageTag latest` (default) is used, queries GitHub to resolve the exact latest stable release tag (e.g., `2.43.7`) so the `n8nio/n8n` and `ghcr.io/n8n-io/runners` image versions match identically.
+
+### 3. Six Official Docker Container Images (Pulled into Docker / WSL2 Storage)
+All container images are downloaded from Docker Hub (`docker.io`) and GitHub Container Registry (`ghcr.io`) and stored inside Docker's WSL2 virtual disk (`c:\DANE\rpindela\SSD\Docker\wsl`):
+
+| # | Image Repository & Tag | Approx. Size | Purpose in the Stack |
+| :- | :--- | :--- | :--- |
+| **1** | `ghcr.io/n8n-io/n8n-sandbox-service-api:1.8.1` | ~77 MB | Used by both `n8n-sandbox-certs` (one-shot mTLS certificate generator) and `n8n-sandbox-api` (Sandbox control plane API). |
+| **2** | `ghcr.io/n8n-io/n8n-sandbox-service-runner-dind:1.8.1` | ~545 MB | Privileged Docker-in-Docker worker (`n8n-sandbox-runner-1`) that hosts isolated sandbox execution environments. |
+| **3** | `ghcr.io/n8n-io/n8n-sandbox-service-sandbox:1.8.1` | ~150 MB | Base micro-sandbox image cached locally and spawned on demand inside `runner-dind` when AI Assistant tests code. |
+| **4** | `docker.io/n8nio/n8n:<version>` *(e.g. `2.43.7`)* | ~1.79 GB | Main self-hosted **n8n** workflow automation platform (`n8n` container on port `5678`). |
+| **5** | `ghcr.io/n8n-io/runners:<version>` *(e.g. `2.43.7`)* | ~350 MB | External Task Runners sidecar (`n8n-runners`) for isolated JavaScript and Python Code node execution. |
+| **6** | `ghcr.io/searxng/searxng:latest` | ~120 MB | Bundled private meta-search engine (`n8n-searxng`) used by n8n AI Assistant for live web & documentation search. |
+
+### 4. Local Configuration Files, Volumes & Logs Generated on Disk
+* **`c:\DANE\rpindela\SSD\Docker\n8n-stack\compose.yml`** — Full 6-service Docker Compose v2 stack definition.
+* **`c:\DANE\rpindela\SSD\Docker\n8n-stack\.env`** — Environment variables and 3 auto-generated 48-character cryptographic hex secrets (`SANDBOX_AUTH_TOKEN`, `N8N_RUNNERS_AUTH_TOKEN`, `SEARXNG_SECRET`). Preserved across updates (`-Update`).
+* **`c:\DANE\rpindela\SSD\Docker\n8n-stack\searxng-settings.yml`** — SearXNG configuration enabling JSON API responses for the n8n Assistant.
+* **Docker Persistent Volumes:**
+  * `n8n_data` — Stores SQLite database (`database.sqlite`), encryption keys (`config`), workflows, and credentials.
+  * `n8n_data_sandbox_tls` — Stores auto-generated mTLS certificates shared between `sandbox-api` and `sandbox-runner-1`.
+* **Execution Log File:**
+  * `C:\Logs\<yyyyMMdd_HHmmss>-deploy-n8n-on-windows-docker-desktop-<ComputerName>-<UserName>.logs` — Timestamped audit log of all actions.
 
 ---
 
@@ -237,12 +282,27 @@ Complete Docker Compose Sandbox stack startup (`n8n-sandbox-certs`, `n8n-sandbox
 
 ![Full Sandbox Stack Orchestration and Deployment Summary](assets/deployment_summary.jpg)
 
-### 6. Configuring n8n AI Assistant with Sandbox Support (`Configuring_AI_Assistant_for_n8n.jpg`)
+### 6. Updating Existing n8n Configuration to Sandbox Stack (`Updating_docker_configuration.jpg`)
+Running `-Update` automatically transitions a standalone `n8n` container (or refreshes an existing stack) to the full 6-service Docker Compose Sandbox architecture while preserving the `n8n_data` volume and displaying a live `Write-Progress` bar:
+
+![Updating Docker Configuration to Sandbox Stack](assets/Updating_docker_configuration.jpg)
+
+### 7. Post-Update Summary & Active Sandbox Containers (`deployment_summary2-updated_configuration.jpg`)
+After completing the `-Update` workflow, the script displays the `DEPLOYMENT SUMMARY: TOOL LOCATIONS & QUICK-START GUIDE` with live status for all 5 active stack containers (`n8n`, `n8n-sandbox-api`, `n8n-sandbox-runner-1`, `n8n-runners`, `n8n-searxng`):
+
+![Post-Update Deployment Summary and Active Sandbox Containers](assets/deployment_summary2-updated_configuration.jpg)
+
+### 8. Configuring n8n AI Assistant with Sandbox Support (`Configuring_AI_Assistant_for_n8n.jpg`)
 Connecting an AI model provider (e.g., Anthropic Claude Opus 5) in the n8n AI Assistant (`http://localhost:5678/assistant`), backed by the local Docker Sandbox stack:
 
 ![Configuring n8n AI Assistant](assets/Configuring_AI_Assistant_for_n8n.jpg)
 
-### 7. Launching Self-Hosted n8n Web UI on Localhost (`launching_n8n_on_localmachine.jpg`)
+### 9. Active n8n AI Assistant Ready to Build Workflows (`Finished_deployment_Ask_AI_for_help.jpg`)
+Once the AI model and Sandbox stack are active, **n8n Assistant (Preview)** at `http://localhost:5678/assistant` is ready to build, test, and debug workflows interactively (`"What do you want to automate?"`):
+
+![n8n AI Assistant Ready to Automate Workflows](assets/Finished_deployment_Ask_AI_for_help.jpg)
+
+### 10. Launching Self-Hosted n8n Web UI on Localhost (`launching_n8n_on_localmachine.jpg`)
 Accessing the deployed self-hosted n8n instance in the browser at `http://localhost:5678`:
 
 ![Launching Self-Hosted n8n Web UI on Localhost](assets/launching_n8n_on_localmachine.jpg)
