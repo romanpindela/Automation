@@ -62,9 +62,10 @@ deploy-n8n-on-windows-docker-desktop/
 │   ├── Standard_run.jpg                      # Screenshot: Interactive help & zero-parameter run
 │   ├── deploying_docker.jpg                  # Screenshot: Docker Engine startup & directory preparation
 │   ├── deploying_docker2.jpg                 # Screenshot: Real-time n8nio/n8n image layer download progress
-│   ├── deployment_summary.jpg                # Screenshot: Container deployment & quick-start summary
-│   ├── deployment_summary2.jpg               # Screenshot: End-to-end WSL2 update + Docker + n8n summary
-│   └── launching_n8n_on_localmachine.jpg     # Screenshot: Running n8n Web UI & AI Assistant at http://localhost:5678
+│   ├── sandbox_for_n8n.jpg                   # Screenshot: Pulling n8n Sandbox stack images & Docker Desktop view
+│   ├── deployment_summary.jpg                # Screenshot: Full 6-service Sandbox stack startup & summary
+│   ├── Configuring_AI_Assistant_for_n8n.jpg  # Screenshot: Configuring n8n AI Assistant model at localhost:5678
+│   └── launching_n8n_on_localmachine.jpg     # Screenshot: Launching n8n Web UI & AI Assistant on localhost
 ├── deploy-n8n-on-windows-docker-desktop.ps1  # Main PowerShell deployment & lifecycle script
 └── README.md                                 # Technical documentation & usage guide
 ```
@@ -221,23 +222,28 @@ Launching the deployment (`-d` / `-Deploy`) displays the detailed execution para
 
 ![Docker Engine Startup and Directory Setup](assets/deploying_docker.jpg)
 
-### 3. Real-Time Image Pull & Layer Progress Bar (`deploying_docker2.jpg`)
-While pulling the Docker images, the script parses layer-by-layer download and extraction events and renders a live `Write-Progress` bar (`Layers completed: [8/14] (57%)`):
+### 3. Real-Time n8n Image Pull & Layer Progress Bar (`deploying_docker2.jpg`)
+While pulling the main `n8nio/n8n` image, the script parses layer-by-layer download and extraction events and renders a live `Write-Progress` bar (`Layers completed: [8/14] (57%)`):
 
 ![Pulling n8n Docker Image with Layer Progress Bar](assets/deploying_docker2.jpg)
 
-### 4. Container Provisioning & Tool Locations Summary (`deployment_summary.jpg`)
-Once images are pulled and started with the `n8n_data` persistent volume, the script outputs the complete tool locations and quick-start summary:
+### 4. Pulling n8n Sandbox Stack Images & Docker Desktop Inspection (`sandbox_for_n8n.jpg`)
+Multi-stage `Write-Progress` bar tracking all 6 Sandbox stack images (`[3/6] Pulling Docker Image ghcr.io/n8n-io/n8n-sandbox-service-sandbox:1.8.1`) alongside the Docker Desktop GUI showing the downloaded `n8n-sandbox-service` images:
 
-![Container Provisioning and Tool Locations Summary](assets/deployment_summary.jpg)
+![Pulling n8n Sandbox Stack Images and Docker Desktop View](assets/sandbox_for_n8n.jpg)
 
-### 5. Full End-to-End WSL2 + Docker + n8n Deployment Output (`deployment_summary2.jpg`)
-Complete execution view showing WSL2 feature checks (`Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`), `wsl.exe --update`, `wsl.exe --set-default-version 2`, container startup, HTTP health check at `http://localhost:5678`, and the quick-start reference:
+### 5. Full 6-Service Sandbox Stack Orchestration & Deployment Summary (`deployment_summary.jpg`)
+Complete Docker Compose Sandbox stack startup (`n8n-sandbox-certs`, `n8n-sandbox-api` Healthy, `n8n-sandbox-runner-1`, `n8n`, `n8n-runners`, `n8n-searxng`), internal health verification (`http://sandbox-api:8080/healthz -> {"status":"ok"}`), and the post-deployment tool locations & quick-start guide:
 
-![Full End-to-End WSL2 Docker and n8n Deployment Summary](assets/deployment_summary2.jpg)
+![Full Sandbox Stack Orchestration and Deployment Summary](assets/deployment_summary.jpg)
 
-### 6. Launching Self-Hosted n8n Web UI & AI Assistant on Localhost (`launching_n8n_on_localmachine.jpg`)
-Accessing the deployed n8n instance and AI Assistant in the browser at `http://localhost:5678/assistant`, backed by the isolated Docker Sandbox stack:
+### 6. Configuring n8n AI Assistant with Sandbox Support (`Configuring_AI_Assistant_for_n8n.jpg`)
+Connecting an AI model provider (e.g., Anthropic Claude Opus 5) in the n8n AI Assistant (`http://localhost:5678/assistant`), backed by the local Docker Sandbox stack:
+
+![Configuring n8n AI Assistant](assets/Configuring_AI_Assistant_for_n8n.jpg)
+
+### 7. Launching Self-Hosted n8n Web UI on Localhost (`launching_n8n_on_localmachine.jpg`)
+Accessing the deployed self-hosted n8n instance in the browser at `http://localhost:5678`:
 
 ![Launching Self-Hosted n8n Web UI on Localhost](assets/launching_n8n_on_localmachine.jpg)
 
