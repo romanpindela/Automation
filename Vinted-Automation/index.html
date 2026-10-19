@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinted Copilot Dashboard</title>
+    <style>
+        :root {
+            --primary: #09b1ba;
+            --primary-hover: #078e95;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --blue: #3b82f6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 18px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header p {
+            margin: 4px 0 0 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .stat-card strong {
+            font-size: 18px;
+            color: var(--primary);
+            display: block;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            line-height: 1.4;
+        }
+        .price {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--success);
+            white-space: nowrap;
+            margin-left: 10px;
+        }
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 10px 0;
+        }
+        .badge {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        .desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: pre-line;
+            max-height: 85px;
+            overflow-y: auto;
+            margin: 10px 0 16px 0;
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 6px;
+            line-height: 1.5;
+            border: 1px solid #1e293b;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: auto;
+        }
+        button, a.btn {
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        button:hover, a.btn:hover { opacity: 0.88; }
+        .btn-open { background: var(--blue); color: white; flex: 1; }
+        .btn-mark { background: #10b981; color: white; flex: 1; }
+        .btn-vinted {
+            background: var(--primary);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+        .btn-vinted:hover { background: var(--primary-hover); }
+        .status-loading {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🛍️ Vinted Copilot Dashboard</h1>
+            <p>Przedmioty przygotowane do wystawienia (zastosowany rabat -20%)</p>
+        </div>
+        <div>
+            <a href="https://www.vinted.pl/items/new" target="_blank" class="btn btn-vinted">+ Otwórz formularz Vinted</a>
+        </div>
+    </div>
+
+    <div class="stats-bar" id="stats">
+        <div class="stat-card">Łącznie przedmiotów: <strong id="total-count">0</strong></div>
+        <div class="stat-card">Do wystawienia: <strong id="ready-count" style="color:#38bdf8;">0</strong></div>
+        <div class="stat-card">Łączna wartość: <strong id="total-value" style="color:var(--success);">0 PLN</strong></div>
+    </div>
+
+    <div id="cards" class="grid">
+        <div class="status-loading">Wczytywanie przedmiotów z katalogu...</div>
+    </div>
+
+    <script>
+        async function loadItems() {
+            const container = document.getElementById('cards');
+            try {
+                const res = await fetch('/api/catalog');
+                if (!res.ok) throw new Error('Serwer zwrócił kod ' + res.status);
+                const data = await res.json();
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="status-loading">Brak przedmiotów do wyświetlenia.</div>';
+                    return;
+                }
+
+                const pending = data.filter(i => i.status !== 'listed');
+                document.getElementById('total-count').innerText = data.length;
+                document.getElementById('ready-count').innerText = pending.length;
+                
+                const totalVal = pending.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+                document.getElementById('total-value').innerText = totalVal + ' PLN';
+
+                container.innerHTML = '';
+                pending.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div>
+                            <div class="card-header">
+                                <div class="title">${index + 1}. ${escapeHtml(item.title)}</div>
+                                <div class="price">${item.price} zł</div>
+                            </div>
+                            <div class="badge-row">
+                                <span class="badge">🏷️ ${escapeHtml(item.brand || 'Inna')}</span>
+                                <span class="badge">📏 ${escapeHtml(item.size || 'Inny')}</span>
+                                <span class="badge">📦 ${escapeHtml(item.package_size || 'Średnia')}</span>
+                                <span class="badge">📷 ${item.photo_count || 0} zdjęć</span>
+                            </div>
+                            <div class="desc">${escapeHtml(item.description)}</div>
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn-open" onclick="openFolder('${escapeJs(item.id)}')">📂 Pokaż zdjęcia</button>
+                            <button class="btn-mark" onclick="markListed('${escapeJs(item.id)}')">✅ Wystawione</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<div class="status-loading" style="color:#ef4444;">
+                    ❌ Błąd wczytywania: ${escapeHtml(err.message)}<br>
+                    <small style="color:#94a3b8;">Upewnij się, że skrypt Start-VintedCopilotServer.ps1 jest uruchomiony w konsoli PowerShell.</small>
+                </div>`;
+            }
+        }
+
+        async function openFolder(id) {
+            try {
+                await fetch('/api/open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+            } catch (e) {
+                alert('Błąd wywołania otwarcia folderu: ' + e);
+            }
+        }
+
+        async function markListed(id) {
+            if (!confirm('Czy przenieść ten folder do archiwum _Wystawione?')) return;
+            try {
+                const res = await fetch('/api/mark-listed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                if (res.ok) {
+                    loadItems();
+                } else {
+                    alert('Błąd podczas przenoszenia folderu.');
+                }
+            } catch (e) {
+                alert('Błąd połączenia: ' + e);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        function escapeJs(str) {
+            if (!str) return '';
+            return String(str).replace(/'/g, "\\'");
+        }
+
+        loadItems();
+    </script>
+</body>
+</html>

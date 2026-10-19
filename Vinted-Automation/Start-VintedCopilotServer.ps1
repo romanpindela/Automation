@@ -140,91 +140,8 @@ Write-Log "Catalog API:     ${prefix}api/catalog"
 Write-Log "Press Ctrl+C in this console window to stop the server."
 Write-Log "=========================================================="
 
-# Simple HTML dashboard template
-$dashboardHtml = @"
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vinted Automation Dashboard</title>
-    <style>
-        :root { --primary: #09b1ba; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 16px; margin-bottom: 24px; }
-        h1 { margin: 0; font-size: 24px; color: var(--primary); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
-        .card { background: var(--card); border-radius: 12px; padding: 18px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
-        .title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #fff; }
-        .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; margin-right: 6px; margin-bottom: 6px; background: #334155; }
-        .price { font-size: 20px; font-weight: 700; color: #22c55e; margin: 12px 0 6px 0; }
-        .desc { font-size: 13px; color: var(--text-muted); white-space: pre-line; max-height: 80px; overflow-y: auto; margin-bottom: 14px; background: #0f172a; padding: 8px; border-radius: 6px; }
-        .btn-row { display: flex; gap: 8px; }
-        button { cursor: pointer; border: none; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
-        button:hover { opacity: 0.85; }
-        .btn-open { background: #3b82f6; color: white; }
-        .btn-vinted { background: var(--primary); color: white; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; text-align: center; }
-        .btn-mark { background: #10b981; color: white; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div>
-            <h1>🛍️ Vinted Copilot Dashboard</h1>
-            <p style="margin: 4px 0 0 0; color: var(--text-muted); font-size: 14px;">Zarządzaj przedmiotami przygotowanymi do wystawienia</p>
-        </div>
-        <div>
-            <a href="https://www.vinted.pl/items/new" target="_blank" class="btn-vinted">+ Otwórz formularz Vinted</a>
-        </div>
-    </div>
-    <div id="cards" class="grid">Ładowanie przedmiotów...</div>
-    <script>
-        async function loadItems() {
-            try {
-                const res = await fetch('/api/catalog');
-                const data = await res.json();
-                const container = document.getElementById('cards');
-                container.innerHTML = '';
-                data.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.innerHTML = `
-                        <div>
-                            <div class="title">\${item.title}</div>
-                            <div>
-                                <span class="badge">🏷️ \${item.brand || 'Brak marki'}</span>
-                                <span class="badge">📏 \${item.size || 'Uniwersalny'}</span>
-                                <span class="badge">📦 \${item.package_size || 'Średnia'}</span>
-                                <span class="badge">📷 \${item.photo_count} zdjęć</span>
-                            </div>
-                            <div class="price">\${item.price} PLN</div>
-                            <div class="desc">\${item.description}</div>
-                        </div>
-                        <div class="btn-row">
-                            <button class="btn-open" onclick="openFolder('\${item.id}')">📂 Pokaż zdjęcia</button>
-                            <button class="btn-mark" onclick="markListed('\${item.id}')">✅ Wystawione</button>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch (e) {
-                document.getElementById('cards').innerText = 'Błąd wczytywania katalogu: ' + e;
-            }
-        }
-        async function openFolder(id) {
-            await fetch('/api/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-        }
-        async function markListed(id) {
-            if (confirm('Czy na pewno chcesz przenieść ten przedmiot do archiwum _Wystawione?')) {
-                await fetch('/api/mark-listed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-                loadItems();
-            }
-        }
-        loadItems();
-    </script>
-</body>
-</html>
-"@
+# Path to index.html
+$indexPath = Join-Path $PSScriptRoot "index.html"
 
 try {
     while ($listener.IsListening) {
@@ -247,7 +164,12 @@ try {
         $path = $request.Url.AbsolutePath.ToLower()
 
         if ($request.HttpMethod -eq "GET" -and ($path -eq "/" -or $path -eq "/index.html")) {
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes($dashboardHtml)
+            $html = if (Test-Path -Path $indexPath) {
+                [System.IO.File]::ReadAllText($indexPath, [System.Text.Encoding]::UTF8)
+            } else {
+                "<!DOCTYPE html><html><body><h1>index.html not found</h1></body></html>"
+            }
+            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
             $response.ContentType = "text/html; charset=utf-8"
             $response.ContentLength64 = $buffer.Length
             $response.OutputStream.Write($buffer, 0, $buffer.Length)
