@@ -76,14 +76,32 @@ flowchart TD
 
 ---
 
+## Screenshots & Interface Preview
+
+### Vinted Copilot Dashboard (`http://127.0.0.1:8080/`)
+Interactive web dashboard presenting catalog items with -20% discounted pricing, quick item badges, and 1-click photo folder exploration:
+
+![Vinted Copilot Dashboard](assets/vinted_copilot.jpg)
+
+### Terminal Execution (`Start-VintedCopilotServer.ps1`)
+Lightweight, native zero-dependency HTTP server running in Windows PowerShell:
+
+![Terminal Execution](assets/standard_run.jpg)
+
+---
+
 ## Directory Structure
 
 ```text
 C:\Dane\rpindela\GitHub\Automation\Vinted-Automation\
+├── assets/
+│   ├── standard_run.jpg              # Terminal execution preview
+│   └── vinted_copilot.jpg            # Web dashboard preview
 ├── Generate-VintedMetadata.ps1       # Generates catalog.json and metadata
 ├── Start-VintedCopilotServer.ps1     # Variant B: Local companion HTTP server
 ├── VintedCopilot.user.js             # Variant B: Tampermonkey userscript
 ├── Invoke-VintedBrowserAutomation.ps1# Variant A: Assisted browser runner
+├── index.html                        # Standalone modern web dashboard
 ├── catalog.json                      # Consolidated metadata for all items
 ├── catalog.csv                       # Spreadsheet-ready catalog for Excel
 └── README.md                         # Documentation
