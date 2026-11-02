@@ -6,6 +6,7 @@ A Google Apps Script automation tool to track and report selected financial asse
 * **No API Keys Required:** Uses only public, rate-friendly endpoints.
 * **Automated Archiving:** Appends a new timestamped row with market prices to the active spreadsheet on each run.
 * **Polished HTML Email Report:** Generates a clean, minimalist HTML email organized by asset class.
+* **Change vs. Last Reading:** Each value in the report shows its change since the previous row in the sheet, together with the elapsed period and reference date (e.g. `+5.50% in 7 days (vs 2026-10-26)`). Bond yields and BTC Dominance are shown in percentage points (`pp`).
 * **Error Resilience:** Built-in `try...catch` blocks safeguard against runtime failures if an API endpoint is temporarily unreachable (returning "No data").
 
 ## Tracked Assets & Data Sources

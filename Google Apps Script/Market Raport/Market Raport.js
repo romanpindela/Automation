@@ -80,8 +80,74 @@ function checkMarketData() {
     "DE10Y": getCNBC("DE10Y-DE")
   };
 
-  // --- 3. WRITE TO GSHEET SPREADSHEET ---
+  // --- 3. READ LAST READING FROM GSHEET (REFERENCE FOR CHANGES) ---
   var date = new Date();
+
+  // Column order in the sheet (must match appendRow below)
+  var COLS = ["DATE", "DOT", "SABR", "BTC", "ETH", "BTC_DOM", "TOTAL_MCAP",
+              "SP500", "NASDAQ100", "USDPLN", "EURPLN", "GOLD", "SILVER",
+              "BRENT", "COPPER", "COFFEE", "ALUMINUM",
+              "US10Y", "US30Y", "JP10Y", "US20Y", "DE10Y"];
+
+  var prev = null;      // { KEY: value } from the last row
+  var prevDate = null;  // Date of the last reading
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    var prevValues = sheet.getRange(lastRow, 1, 1, COLS.length).getValues()[0];
+    var d = prevValues[0] instanceof Date ? prevValues[0] : new Date(prevValues[0]);
+    if (!isNaN(d.getTime())) {
+      prevDate = d;
+      prev = {};
+      for (var i = 0; i < COLS.length; i++) prev[COLS[i]] = prevValues[i];
+    }
+  }
+
+  // Converts values like "6,812.43", "$3.45 T", "56.20%", 4.123 to a number (or null)
+  function toNumber(v) {
+    if (typeof v === "number") return v;
+    if (v === null || v === undefined) return null;
+    var s = String(v).replace(/[^0-9.,\-]/g, "");
+    if (s === "") return null;
+    if (s.indexOf(",") > -1 && s.indexOf(".") > -1) {
+      s = s.replace(/,/g, "");                       // 6,812.43 -> 6812.43
+    } else if (s.indexOf(",") > -1) {
+      var parts = s.split(",");
+      s = (parts.length === 2 && parts[1].length !== 3) ? parts.join(".") : parts.join(""); // 4,12 -> 4.12 | 6,812 -> 6812
+    }
+    var n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+
+  // Human readable period between the last reading and now, e.g. "7 days", "1 day", "5h"
+  var periodLabel = "";
+  if (prevDate) {
+    var hours = (date.getTime() - prevDate.getTime()) / 3600000;
+    if (hours < 24) {
+      periodLabel = Math.max(1, Math.round(hours)) + "h";
+    } else {
+      var days = Math.round(hours / 24);
+      periodLabel = days + (days === 1 ? " day" : " days");
+    }
+  }
+  var prevDateLabel = prevDate ? Utilities.formatDate(prevDate, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+
+  // Returns HTML with the change vs. last reading, e.g. "+5.50% in 7 days (vs 2026-10-26)"
+  // usePP = true -> change shown in percentage points (for yields / dominance)
+  function chg(key, usePP) {
+    if (!prev) return "";
+    var cur = toNumber(data[key]);
+    var old = toNumber(prev[key]);
+    if (cur === null || old === null || (!usePP && old === 0)) return "";
+    var diff = usePP ? (cur - old) : ((cur - old) / Math.abs(old)) * 100;
+    var color = diff > 0 ? "#1a7f37" : (diff < 0 ? "#cf222e" : "#888");
+    var sign = diff > 0 ? "+" : "";
+    var text = sign + diff.toFixed(2) + (usePP ? " pp" : "%");
+    return '<div style="font-size: 11px; font-weight: 400; margin-top: 2px;">' +
+           '<span style="color: ' + color + '; font-weight: 600;">' + text + '</span>' +
+           '<span style="color: #999;"> in ' + periodLabel + ' (vs ' + prevDateLabel + ')</span></div>';
+  }
+
+  // --- 4. WRITE TO GSHEET SPREADSHEET ---
   
   sheet.appendRow([
     date, data.DOT, data.SABR, data.BTC, data.ETH, data.BTC_DOM, data.TOTAL_MCAP,
@@ -90,7 +156,7 @@ function checkMarketData() {
     data.US10Y, data.US30Y, data.JP10Y, data.US20Y, data.DE10Y, "" 
   ]);
   
-  // --- 4. SEND HTML EMAIL ---
+  // --- 5. SEND HTML EMAIL ---
   var email = Session.getActiveUser().getEmail();
   var subject = 'Market Report | Update ' + Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
   
@@ -107,56 +173,56 @@ function checkMarketData() {
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
         <tr>
           <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Polkadot (DOT)</td>
-          <td style="text-align: right; font-weight: 600; border-bottom: 1px solid #f4f4f4;">$${data.DOT}</td>
+          <td style="text-align: right; font-weight: 600; border-bottom: 1px solid #f4f4f4;">$${data.DOT}${chg("DOT")}</td>
         </tr>
         <tr>
           <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Sabre Corp. (SABR)</td>
-          <td style="text-align: right; font-weight: 600; border-bottom: 1px solid #f4f4f4;">$${data.SABR}</td>
+          <td style="text-align: right; font-weight: 600; border-bottom: 1px solid #f4f4f4;">$${data.SABR}${chg("SABR")}</td>
         </tr>
       </table>
 
       <!-- CRYPTOCURRENCIES -->
       <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Cryptocurrencies</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">BTC/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BTC}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">ETH/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ETH}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">BTC Dominance</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.BTC_DOM}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Total Marketcap</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.TOTAL_MCAP}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">BTC/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BTC}${chg("BTC")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">ETH/USD</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ETH}${chg("ETH")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">BTC Dominance</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.BTC_DOM}${chg("BTC_DOM", true)}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Total Marketcap</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.TOTAL_MCAP}${chg("TOTAL_MCAP")}</td></tr>
       </table>
 
       <!-- INDICES -->
       <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Stock Indices</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">S&P 500</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.SP500}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">NASDAQ 100</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.NASDAQ100}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">S&P 500</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.SP500}${chg("SP500")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">NASDAQ 100</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.NASDAQ100}${chg("NASDAQ100")}</td></tr>
       </table>
 
       <!-- CURRENCIES -->
       <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Currencies (Forex)</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">USD/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.USDPLN} PLN</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">EUR/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.EURPLN} PLN</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">USD/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.USDPLN} PLN${chg("USDPLN")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">EUR/PLN</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.EURPLN} PLN${chg("EURPLN")}</td></tr>
       </table>
 
       <!-- COMMODITIES -->
       <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Commodities</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Gold</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.GOLD}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Silver</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.SILVER}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Brent Crude</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BRENT}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Copper</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COPPER}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Coffee</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COFFEE}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Aluminum</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ALUMINUM}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Gold</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.GOLD}${chg("GOLD")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Silver</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.SILVER}${chg("SILVER")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Brent Crude</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.BRENT}${chg("BRENT")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Copper</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COPPER}${chg("COPPER")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Coffee</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.COFFEE}${chg("COFFEE")}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Aluminum</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">$${data.ALUMINUM}${chg("ALUMINUM")}</td></tr>
       </table>
 
       <!-- GOVERNMENT BONDS -->
       <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eaeaea; padding-bottom: 6px;">Government Bonds</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 35px; font-size: 14px;">
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 10Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US10Y !== "No data" ? data.US10Y + "%" : data.US10Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 20Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US20Y !== "No data" ? data.US20Y + "%" : data.US20Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 30Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US30Y !== "No data" ? data.US30Y + "%" : data.US30Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Germany 10Y (DE)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.DE10Y !== "No data" ? data.DE10Y + "%" : data.DE10Y}</td></tr>
-        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Japan 10Y (JP)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.JP10Y !== "No data" ? data.JP10Y + "%" : data.JP10Y}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 10Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US10Y !== "No data" ? data.US10Y + "%" : data.US10Y}${chg("US10Y", true)}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 20Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US20Y !== "No data" ? data.US20Y + "%" : data.US20Y}${chg("US20Y", true)}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">US 30Y</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.US30Y !== "No data" ? data.US30Y + "%" : data.US30Y}${chg("US30Y", true)}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Germany 10Y (DE)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.DE10Y !== "No data" ? data.DE10Y + "%" : data.DE10Y}${chg("DE10Y", true)}</td></tr>
+        <tr><td style="padding: 10px 0; border-bottom: 1px solid #f4f4f4; color: #333;">Japan 10Y (JP)</td><td style="text-align: right; font-weight: 500; border-bottom: 1px solid #f4f4f4;">${data.JP10Y !== "No data" ? data.JP10Y + "%" : data.JP10Y}${chg("JP10Y", true)}</td></tr>
       </table>
 
       <div style="font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px;">
