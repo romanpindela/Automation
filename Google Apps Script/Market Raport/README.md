@@ -42,5 +42,8 @@ The script appends gathered data to the next available row using `appendRow()`. 
 ### Market Report Email
 ![Market Report Email](assets/Raport_rynkowy_email.jpg)
 
+### Market Report in Gmail (Change vs. Last Reading)
+![Market Report in Gmail](assets/raport.jpg)
+
 ### Market Data Google Sheet
 ![Market Data Sheet](assets/Market_Data_gsheet.jpg)
