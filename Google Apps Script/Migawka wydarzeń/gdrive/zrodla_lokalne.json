@@ -8,6 +8,7 @@
   { "url": "https://wydarzenia.miasto-info.pl/", "group": "Myślenice" },
   { "url": "https://csm.tarnow.pl/wydarzenia/dla-dzieci", "group": "Tarnów" },
   { "url": "https://kultura.tarnow.pl/wydarzenia/miesiac/", "group": "Tarnów" },
-  { "url": "https://www.malopolska.pl/", "group": "Małopolska" },
+  { "url": "https://radiokrakow.pl/wiadomosci/malopolska", "group": "Małopolska" },
+  { "url": "https://portaledukacyjny.krakow.pl/", "group": "Portal Edukacyjny Kraków" },
   { "url": "https://www.facebook.com/events/explore/krakow/106173009423534/", "group": "Wydarzenia Facebook Kraków" }
 ]
