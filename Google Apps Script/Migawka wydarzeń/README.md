@@ -76,10 +76,27 @@ In Apps Script editor, open **Project Settings** (gear icon) > **Script Properti
 4. **Who has access:** *Anyone*.
 5. The deployment URL handles GET requests (subscription page, unsubscribe links) and POST requests (new email signups).
 
-### 4. Automated Scheduling (Triggers)
+### 4. Automated Scheduling & Manual Execution
+
+#### Automated Scheduling (Triggers)
 In the **Triggers** menu (clock icon), add a time-driven trigger for `generujRaportWiadomosci`:
 - Event source: **Time-driven**
 - Trigger type: **Week timer** (e.g., every Monday between 7:00 AM and 8:00 AM).
+- It will automatically detect the trigger event and send the complete newsletter to all active subscribers in `emails.txt`.
+
+#### Manual Execution (Test vs. Production)
+You can trigger the report generation manually in two convenient ways:
+
+1. **From Google Apps Script Editor:**
+   - **Test Run (Only to Yourself):** Select `generujRaportWiadomosciTest` (or `wyslijRaportTestowy`) and click **Run**. The email subject will include `[TEST]`.
+   - **Production Run (To All Subscribers):** Select `generujRaportWiadomosciWszyscy` (or `wyslijRaportDoWszystkich`) and click **Run**.
+   - Running `generujRaportWiadomosci()` directly without parameters safely defaults to test mode (only to yourself).
+
+2. **Directly from Google Sheets Menu:**
+   - Open your linked Google Spreadsheet.
+   - Click the top menu **📰 Migawka Wydarzeń**:
+     - `🧪 Wyślij raport testowy (tylko do mnie)` – sends test report with confirmation.
+     - `🚀 Wyślij raport do WSZYSTKICH subskrybentów` – asks for confirmation before dispatching to all recipients.
 
 ---
 
