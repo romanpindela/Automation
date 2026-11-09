@@ -679,7 +679,9 @@ function budujTabeleZHerbamiWKolumnie(dane, pozostaleNaglowki, konfiguracja, kol
       let link = r[r.length - 1];
       let srodek = r.slice(1, r.length - 1);
 
-      let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 2;
+      // srodek ma zająć wszystkie kolumny pomiędzy pierwszą (Obszar/Herb) a ostatnią (Link)
+      // Łączna liczba kolumn wiersza = srodek.length + 1 (link) === oczekiwanaLiczbaKolumn
+      let docelowaLiczbaPrzedLinkiem = oczekiwanaLiczbaKolumn - 1;
       while (srodek.length < docelowaLiczbaPrzedLinkiem) {
         srodek.push("—");
       }
@@ -711,7 +713,10 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
   html += `<thead><tr style="background-color: #ffffff; color: #0f172a; border-top: 3px solid ${kolorAkcentu}; border-bottom: 2px solid #cbd5e1;">`;
   naglowki.forEach((naglowek, idx) => {
     let stylPierwszej = (idx === 0) ? "white-space: nowrap; min-width: 130px;" : "";
-    html += `<th style="border: 1px solid #e2e8f0; padding: 7px 8px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; ${stylPierwszej}">${naglowek}</th>`;
+    let jestOstatni = (idx === naglowki.length - 1);
+    let align = jestOstatni ? "center" : "left";
+    let szerokoscOstatniej = jestOstatni ? "width: 70px;" : "";
+    html += `<th style="border: 1px solid #e2e8f0; padding: 7px 8px; text-align: ${align}; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; ${stylPierwszej} ${szerokoscOstatniej}">${naglowek}</th>`;
   });
   html += `</tr></thead><tbody>`;
 
@@ -730,7 +735,8 @@ function budujTabeleEmail(dane, naglowki, kolorAkcentu, kolorWierszaAlt) {
         tekst = tekst.substring(0, 220) + "...";
       }
 
-      html += `<td style="border: 1px solid #e2e8f0; padding: 6px 8px; vertical-align: top; line-height: 1.35; color: #334155;">${tekst}</td>`;
+      let stylOstatniej = jestOstatniaKolumna ? "text-align: center; white-space: nowrap;" : "";
+      html += `<td style="border: 1px solid #e2e8f0; padding: 6px 8px; vertical-align: top; line-height: 1.35; color: #334155; ${stylOstatniej}">${tekst}</td>`;
     });
     html += `</tr>`;
   });
