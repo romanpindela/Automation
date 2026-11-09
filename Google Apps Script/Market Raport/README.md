@@ -27,7 +27,7 @@ To run the script automatically on a recurring schedule (e.g., weekly):
 1. In the Apps Script editor, open the **Triggers** tab (clock icon in the left sidebar).
 2. Click **+ Add Trigger** in the bottom-right corner.
 3. Configure the trigger:
-   * *Choose which function to run:* `checkMarketData`
+   * *Choose which function to run:* `runMarketReport` (or `checkMarketData`)
    * *Select event source:* `Time-driven`
    * *Select type of time based trigger:* `Week timer`
    * *Select day of week:* e.g., `Monday`
@@ -39,11 +39,8 @@ The script appends gathered data to the next available row using `appendRow()`. 
 
 ## Screenshots & Examples
 
-### Market Report Email
-![Market Report Email](assets/Raport_rynkowy_email.jpg)
-
-### Market Report in Gmail (Change vs. Last Reading)
-![Market Report in Gmail](assets/raport.jpg)
+### Executive Market Brief Email
+![Executive Market Brief Email](assets/Raport_rynkowy_email.jpg)
 
 ### Market Data Google Sheet
-![Market Data Sheet](assets/Market_Data_gsheet.jpg)
+![Market Data Google Sheet](assets/Market_Data_gsheet.jpg)
