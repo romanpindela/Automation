@@ -5,130 +5,136 @@
 [![Google Gemini CLI](https://img.shields.io/badge/%40google%2Fgemini--cli-latest-orange.svg)](https://www.npmjs.com/package/@google/gemini-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-Kompleksowy skrypt automatyzacji PowerShell przygotowujący środowisko uruchomieniowe dla narzędzia **Google Gemini CLI** (`@google/gemini-cli`) w systemie Windows.
+An enterprise-grade, clean-code PowerShell automation script that provisions a complete runtime and execution environment for the official **Google Gemini CLI** (`@google/gemini-cli`) on Windows.
 
 ---
 
-## 1. Informacje Ogólne
+## 1. Project Information
 
-- **Katalog projektu:** `C:\GitHub\Automation\Gemini\Install-GeminiCliEnvironment`
-- **Główny plik skryptu:** `Install-GeminiCliEnvironment.ps1`
-- **Autor:** Rafał Pindela / Automatyzacja PowerShell
-- **Kompatybilność:** Windows PowerShell 5.1 oraz PowerShell 7+ (`dual-compatibility`)
+| Parameter | Value |
+| :--- | :--- |
+| **Project Directory** | `C:\GitHub\Automation\Gemini\Install-GeminiCliEnvironment` |
+| **Script Name** | `Install-GeminiCliEnvironment.ps1` |
+| **Author** | Rafal Pindela / PowerShell Automation |
+| **Compatibility** | Windows PowerShell 5.1 & PowerShell 7+ (`dual-compatibility`) |
+| **Package Reference** | [`@google/gemini-cli` (npm)](https://www.npmjs.com/package/@google/gemini-cli) |
 
 ---
 
-## 2. Zrzuty Ekranu i Przebieg Wdrożenia
+## 2. Visual Walkthrough & Screenshots
 
-### 2.1. Standardowe wykonanie skryptu instalacyjnego
-Automatyczna weryfikacja środowiska, uprawnień UAC, instalacja Node.js LTS, odświeżenie PATH, instalacja pakietu `@google/gemini-cli` oraz konfiguracja profilu:
+### 2.1. Automated Pipeline Execution
+Automatic privilege checks, UAC elevation, Node.js LTS verification and installation, in-flight PATH refresh, `@google/gemini-cli` global deployment, and profile credential injection:
 
-![Standardowe uruchomienie instalatora](assets/Standard_run.jpg)
+![Standard installer execution](assets/Standard_run.jpg)
 
-### 2.2. Panel Google AI Studio i pobranie klucza API
-Uzyskanie klucza Google Gemini API w konsoli Google AI Studio:
+### 2.2. Google AI Studio API Key Provisioning
+Generating and retrieving the Google Gemini API key from the Google AI Studio console:
 
 ![Google AI Studio - Gemini API Keys](assets/Api_KEYS_GEMINI.jpg)
 
-### 2.3. Inicjalizacja Gemini CLI w PowerShell
-Pierwsze uruchomienie polecenia `gemini` w nowym oknie konsoli:
+### 2.3. Initializing Gemini CLI in PowerShell
+First launch of the `gemini` command in a fresh PowerShell terminal:
 
-![Uruchomienie Gemini CLI w PowerShell](assets/Gemini_run.jpg)
+![Launching Gemini CLI in PowerShell](assets/Gemini_run.jpg)
 
-### 2.4. Interaktywna praca z agentem Gemini w terminalu
-Praca w trybie konwersacyjnym i wykonywanie poleceń przez Google Gemini CLI:
+### 2.4. Interactive Agent Session
+Conversational interaction, command execution, and code generation with Google Gemini CLI:
 
-![Interaktywna sesja Gemini CLI](assets/Gemini_run2.jpg)
-
----
-
-## 3. Cel i Architektura Rozwiązania
-
-Skrypt automatyzuje cały proces konfiguracji stacji roboczej lub serwera pod kątem korzystania z oficjalnego wiersza poleceń Gemini:
-1. **Weryfikacja środowiska i elewacja uprawnień (UAC):** Skrypt automatycznie sprawdza uprawnienia administracyjne; w przypadku ich braku podnosi proces do roli Administratora zachowując wszystkie przekazane parametry.
-2. **Instalacja Node.js LTS:** Sprawdza dostępność środowiska uruchomieniowego. W razie braku instaluje najnowszą wersję LTS za pomocą menedżera pakietów `winget` (`OpenJS.NodeJS.LTS`), z inteligentnym fallbackiem na cichy instalator MSI pobierany bezpośrednio z serwerów Node.js.
-3. **Dynamiczne odświeżenie PATH:** Natychmiast uaktualnia zmienną środowiskową `$env:PATH` w bieżącej sesji konsoli, zapobiegając konieczności restartu terminala.
-4. **Instalacja Gemini CLI:** Globalna instalacja narzędzia za pośrednictwem `npm install -g @google/gemini-cli`.
-5. **Bezpieczny magazyn klucza API i integracja z profilem:**
-   - Tworzy katalog `%USERPROFILE%\.gemini` oraz plik konfiguracyjny `api_key.txt`.
-   - Dopisuje idempotentny blok ładowania do profilu PowerShell (`$PROFILE`), dzięki czemu zmienna `$env:GEMINI_API_KEY` jest automatycznie dostępna przy każdym otwarciu konsoli.
+![Interactive Gemini CLI session](assets/Gemini_run2.jpg)
 
 ---
 
-## 4. Schemat Działania
+## 3. Architecture & Core Features
+
+`Install-GeminiCliEnvironment.ps1` automates the entire setup lifecycle:
+
+1. **UAC Auto-Elevation:** Automatically checks for local administrator privileges. If unprivileged, it restarts itself in an elevated session (`RunAs`), preserving all initial invocation switches and parameters.
+2. **Node.js LTS Runtime Provisioning:** Detects existing installations. If missing or forced (`-ForceReinstall`), it installs the latest LTS release via the Windows Package Manager (`winget install --id OpenJS.NodeJS.LTS`), falling back gracefully to direct silent MSI installation (`msiexec /i ... /qn /norestart`).
+3. **Dynamic Session PATH Refresh:** Reconstructs and injects `Machine` and `User` PATH variables in-memory along with default Node/NPM bin directories, eliminating the need to restart the shell to access newly installed commands.
+4. **Global Gemini CLI Deployment:** Deploys `@google/gemini-cli` globally via `npm install -g @google/gemini-cli`.
+5. **Secure Credential Store & `$PROFILE` Integration:**
+   - Prepares a dedicated, protected directory: `%USERPROFILE%\.gemini\`
+   - Generates the configuration template `api_key.txt` (or injects the `-ApiKey` argument directly).
+   - Injects an idempotent loader block into the PowerShell profile (`$PROFILE`), automatically setting `$env:GEMINI_API_KEY` whenever a new terminal session starts.
+
+---
+
+## 4. Execution Workflow
 
 ```mermaid
 flowchart TD
-    A[Start Skryptu] --> B{Uprawnienia Administratora?}
-    B -- Nie --> C[Autopodniesienie UAC RunAs]
-    C --> Z[Koniec pierwotnego procesu]
-    B -- Tak --> D[Inicjalizacja Logowania C:\Logs\]
-    D --> E[Krok 1: Weryfikacja platformy]
-    E --> F{Node.js zainstalowany?}
-    F -- Nie --> G[Instalacja Node.js LTS przez winget / MSI]
-    F -- Tak --> H[Krok 3: Dynamiczne odswiezenie PATH]
+    A[Start Script] --> B{Administrator Rights?}
+    B -- No --> C[UAC Auto-Elevation RunAs]
+    C --> Z[Terminate Original Process]
+    B -- Yes --> D[Initialize Logging C:\Logs\]
+    D --> E[Step 1: System Platform Verification]
+    E --> F{Node.js Installed?}
+    F -- No --> G[Install Node.js LTS via winget / MSI Fallback]
+    F -- Yes --> H[Step 3: Dynamic Session PATH Refresh]
     G --> H
-    H --> I[Krok 4: npm install -g @google/gemini-cli]
-    I --> J[Krok 5: Inicjalizacja %USERPROFILE%\.gemini\api_key.txt]
-    J --> K[Integracja profilu $PROFILE PowerShell]
-    K --> L[Test gotowosci i zakonczenie]
+    H --> I[Step 4: npm install -g @google/gemini-cli]
+    I --> J[Step 5: Initialize %USERPROFILE%\.gemini\api_key.txt]
+    J --> K[Inject Idempotent Loader to $PROFILE]
+    K --> L[Test Readiness & Finish]
 ```
 
 ---
 
-## 5. Wymagania Wstępne
+## 5. Prerequisites
 
-- System operacyjny: **Windows 10 / 11** lub **Windows Server 2016+** (architektura 64-bitowa).
-- Powłoka: **Windows PowerShell 5.1** lub **PowerShell 7.x+**.
-- Dostęp do Internetu (pobranie Node.js oraz pakietów npm).
-- Uprawnienia lokalnego administratora (skrypt automatycznie wywołuje monit UAC).
+- **Operating System:** Windows 10 / 11 or Windows Server 2016+ (64-bit architecture).
+- **PowerShell:** Windows PowerShell 5.1 or PowerShell Core 7.x+.
+- **Network:** Active internet connection (for package and installer downloads).
+- **Privileges:** Local Administrator rights (triggers UAC automatically if unprivileged).
 
 ---
 
-## 6. Parametry Wejściowe
+## 6. Parameters Reference
 
-| Parametr | Typ | Domyślnie | Opis |
+| Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `-ForceReinstall` | `[switch]` | `$false` | Wymusza ponowną instalację pakietów Node.js oraz Gemini CLI, nawet jeśli istnieją. |
-| `-ApiKey` | `[string]` | `$null` | Opcjonalny klucz Google Gemini API; jeśli podany, zapisuje go od razu do pliku `api_key.txt`. |
-| `-LogDirectory` | `[string]` | `'C:\Logs'` | Katalog docelowy zapisu plików dziennika zdarzeń. |
-| `-Quiet` | `[switch]` | `$false` | Tryb cichy – blokuje automatyczne otwarcie edytora Notatnik po zakończeniu. |
+| `-ForceReinstall` | `[switch]` | `$false` | Forces reinstallation of Node.js and the Gemini CLI package even if already detected. |
+| `-ApiKey` | `[string]` | `$null` | Optional Google Gemini API key. If supplied, written immediately to `api_key.txt`. |
+| `-LogDirectory` | `[string]` | `'C:\Logs'` | Destination directory for timestamped execution logs. |
+| `-Quiet` | `[switch]` | `$false` | Suppresses automatic launch of Notepad with the key template file upon completion. |
 
 ---
 
-## 7. Przykłady Użycia
+## 7. Practical Examples
 
-### 7.1. Standardowe uruchomienie
+### 7.1. Standard Interactive Execution
 ```powershell
 .\Install-GeminiCliEnvironment.ps1
 ```
-Sprawdza środowisko, instaluje brakujące komponenty, tworzy szablon klucza i otwiera plik w Notatniku.
+Runs environment checks, installs missing dependencies, creates the API key template, and opens it in Notepad.
 
-### 7.2. Ciche wdrożenie z gotowym kluczem API
+### 7.2. Silent Automated Deployment with Pre-Supplied API Key
 ```powershell
-.\Install-GeminiCliEnvironment.ps1 -ApiKey "AIzaSyD-TwojKluczGemini..." -Quiet
+.\Install-GeminiCliEnvironment.ps1 -ApiKey "AIzaSyD-YourSecretApiKey..." -Quiet
 ```
-Idealne do skryptów automatyzacji wdrożeń – instaluje wszystko w tle i konfiguruje klucz bez interakcji z użytkownikiem.
+Ideal for unattended setup scripts—configures the runtime, sets the key, and completes without interactive prompts.
 
-### 7.3. Wymuszenie reinstalacji z niestandardowym katalogiem logów
+### 7.3. Forced Reinstallation with Custom Log Path
 ```powershell
-.\Install-GeminiCliEnvironment.ps1 -ForceReinstall -LogDirectory "D:\Dzienniki"
+.\Install-GeminiCliEnvironment.ps1 -ForceReinstall -LogDirectory "D:\SetupLogs"
 ```
 
 ---
 
-## 8. Zarządzanie Kluczem API
+## 8. API Key Management
 
-Klucz API przechowywany jest w chronionym katalogu profilu użytkownika:
-- **Ścieżka:** `%USERPROFILE%\.gemini\api_key.txt`
-- **Format pliku:**
+The API key is securely isolated within the user's profile directory:
+- **Location:** `%USERPROFILE%\.gemini\api_key.txt`
+- **File Structure:**
   ```text
   # Google Gemini API Key
-  AIzaSy...twoj_klucz_api...
+  AIzaSy...your_gemini_api_key...
   ```
 
-### Automatyczne ładowanie w profilu (`$PROFILE`)
-Skrypt dodaje do pliku `$PROFILE` bezpieczny znacznik:
+### Automatic Profile Injection (`$PROFILE`)
+The script adds an idempotent initialization block to `$PROFILE`:
+
 ```powershell
 # >>> GEMINI-CLI-INIT >>>
 $geminiKeyFile = "$env:USERPROFILE\.gemini\api_key.txt"
@@ -140,32 +146,32 @@ if (Test-Path -Path $geminiKeyFile) {
 }
 # <<< GEMINI-CLI-INIT <<<
 ```
-Zapewnia to, że zmienna `$env:GEMINI_API_KEY` jest zawsze automatycznie dostępna przy uruchomieniu terminala bez konieczności ręcznego eksportu.
+This guarantees that `$env:GEMINI_API_KEY` is loaded every time PowerShell starts.
 
 ---
 
-## 9. Logowanie i Diagnostyka
+## 9. Logging & Diagnostics
 
-- Domyślny plik logu: `C:\Logs\Install-GeminiCliEnvironment_YYYY-MM-DD.log`.
-- Każdy wpis zawiera znacznik czasu, poziom (`[INFO]`, `[WARN]`, `[ERROR]`, `[DEBUG]`) oraz nazwę komponentu.
-- Logi są równolegle prezentowane w oknie konsoli z czytelnym formatowaniem kolorystycznym.
+- **Log File Location:** `C:\Logs\Install-GeminiCliEnvironment_YYYY-MM-DD.log`
+- **Format:** `[YYYY-MM-DD HH:mm:ss] [LEVEL] [Component] Message`
+- Real-time colorized console feedback is rendered alongside persistent disk logs.
 
-### Kody Wyjścia (`Exit Codes`)
+### Exit Codes
 
-| Kod | Status | Opis |
+| Code | Status | Description |
 | :---: | :--- | :--- |
-| `0` | **Sukces** | Środowisko Node.js, Gemini CLI oraz pliki konfiguracyjne zostały pomyślnie wdrożone. |
-| `1` | **Błąd środowiskowy** | Błąd pobierania, instalacji silnika Node.js lub błąd instalacji npm. |
-| `2` | **Błąd uprawnień / profilu** | Błąd autopodniesienia UAC lub brak uprawnień do zapisu pliku profilu PowerShell. |
+| `0` | **Success** | Environment, dependencies, and configuration deployed cleanly. |
+| `1` | **Environment Error** | Download failure, package installation failure, or missing platform requirements. |
+| `2` | **Permission / Profile Error** | UAC elevation denied or failure writing to `$PROFILE`. |
 
 ---
 
-## 10. Rozpoczęcie Pracy z Gemini CLI
+## 10. Getting Started with Gemini CLI
 
-Po zakończeniu działania skryptu otwórz nowe okno PowerShell / Windows Terminal i wpisz:
+Once the setup script finishes, launch a new PowerShell or Windows Terminal tab and type:
 
 ```powershell
 gemini
 ```
 
-Możesz natychmiast zadawać pytania, analizować kod, zarządzać zadaniami lub korzystać z wbudowanych narzędzi Gemini wprost z wiersza poleceń.
+You can now ask questions, refactor code, run agentic workflows, and interact with Google Gemini models directly from your command line.
