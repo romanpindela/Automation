@@ -1,0 +1,20 @@
+{
+  "project": "[NAZWA_PROJEKTU]",
+  "reference_number": "[NR_SPRAWY_LUB_ND]",
+  "last_updated": "YYYY-MM-DDTHH:MM:SS",
+  "status": "INITIALIZED",
+  "deadlines": [
+    {
+      "date": "YYYY-MM-DD",
+      "description": "[Opis kluczowego terminu]"
+    }
+  ],
+  "processed_inputs": [],
+  "open_tasks_and_issues": [],
+  "deliverables_pending_approval": [],
+  "deliverables_sent_final": [],
+  "next_recommended_actions": [
+    "Uzupełnij PROJECT_CONTEXT.md i wrzuć materiały wejściowe do stref 0X i 1X",
+    "Uruchom pierwszy prompt z 21 AI PROMPTY/00_PIERWSZY_PROMPT_START_PROJEKTU.md"
+  ]
+}
